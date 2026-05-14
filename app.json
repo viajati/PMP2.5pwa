@@ -1,0 +1,45 @@
+{
+  "expo": {
+    "name": "TaiwanPollutionTracker",
+    "slug": "taiwan-pollution",
+    "scheme": "taiwan-pollution",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0c0d11"
+    },
+    "ios": {
+      "jsEngine": "hermes",
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Allows the app to track your route in real-time.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Required to maintain your complete 24/7 pollution map even when the app is in the background.",
+        "NSCameraUsageDescription": "Allows you to scan telemetry QR codes to sync data between devices.",
+        "UIBackgroundModes": [
+          "location"
+        ]
+      }
+    },
+    "android": {
+      "jsEngine": "hermes",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0c0d11"
+      },
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "CAMERA"
+      ]
+    },
+    "plugins": [
+      "expo-web-browser",
+      "expo-notifications"
+    ]
+  }
+}
