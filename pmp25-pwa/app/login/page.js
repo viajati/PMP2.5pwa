@@ -107,14 +107,14 @@ export default function LoginPage() {
 
   return (
     <main className="app-root">
-      <div className="login-frame relative mx-auto overflow-hidden bg-black text-white shadow-2xl">
+      <div className="login-frame">
         <div className={`weather-bg weather-${weatherType}`} />
         {weatherType === "sunny" && <div className="sun-ray" />}
         <div className="weather-dot" />
 
-        <div className="relative z-10 flex min-h-screen flex-col">
-          <section className="px-10 pb-8 pt-16">
-            <h1 className="text-[48px] font-black leading-[1.15] tracking-[-2px] text-white drop-shadow-[0_6px_8px_rgba(0,0,0,0.42)]">
+        <div className="login-content">
+          <section className="login-hero">
+            <h1 className="login-headline">
               {weatherLines.map((line) => (
                 <span key={line}>
                   {line}
@@ -123,21 +123,21 @@ export default function LoginPage() {
               ))}
             </h1>
 
-            <div className="mt-7 h-[5px] w-[54px] rounded-full bg-white" />
+            <div className="login-rule" />
 
-            <div className="mt-8 flex items-end justify-between gap-4">
+            <div className="login-time-row">
               <div>
-                <p className="text-[36px] font-black tracking-wide text-white drop-shadow-xl">
+                <p className="login-time">
                   {mounted && currentTime ? getTimeString(currentTime) : "--:--:--"}
                 </p>
-                <p className="mt-2 text-base font-black text-white drop-shadow">
+                <p className="login-date">
                   {mounted && currentTime ? getDateString(currentTime) : ""}
                 </p>
               </div>
 
-              <div className="mb-1 flex items-center rounded-full bg-white/25 px-4 py-2 backdrop-blur-md">
+              <div className="login-location-pill">
                 <span className="text-sm">📍</span>
-                <span className="ml-2 text-[14px] font-extrabold text-white">
+                <span className="ml-2">
                   {cityName}
                 </span>
               </div>
@@ -146,59 +146,59 @@ export default function LoginPage() {
 
           <div className="h-8 shrink-0" />
 
-          <section className="mt-auto rounded-t-[45px] bg-white px-10 pb-9 pt-10 text-slate-950 shadow-2xl">
-            <div className="space-y-4">
-              <h2 className="mb-3 text-[32px] font-black tracking-[-0.04em] text-[#111]">
+          <section className="login-sheet">
+            <div className="login-form-stack">
+              <h2 className="login-title">
                 {isLogin ? "Log In" : "Sign Up"}
               </h2>
 
               {!isLogin && (
-                <div className="flex h-16 items-center rounded-[18px] border border-[#eceef2] bg-[#f8f9fa] px-5 shadow-inner">
-                  <span className="mr-4 text-xl text-slate-500">👤</span>
+                <div className="login-field">
+                  <span className="login-field-icon">👤</span>
                   <input
-                    className="w-full bg-transparent text-base font-black text-[#1a1a1a] outline-none placeholder:text-[#999]"
+                    className="login-field-input"
                     placeholder="Username"
                   />
                 </div>
               )}
 
-              <div className="flex h-16 items-center rounded-[18px] border border-[#eceef2] bg-[#f8f9fa] px-5 shadow-inner">
-                <span className="mr-4 text-xl text-slate-500">
+              <div className="login-field">
+                <span className="login-field-icon">
                   {isLogin ? "✉️" : "@"}
                 </span>
                 <input
-                  className="w-full bg-transparent text-base font-black text-[#1a1a1a] outline-none placeholder:text-[#999]"
+                  className="login-field-input"
                   placeholder={isLogin ? "Username or Email" : "Email Address"}
                 />
               </div>
 
-              <div className="flex h-16 items-center rounded-[18px] border border-[#eceef2] bg-[#f8f9fa] px-5 shadow-inner">
-                <span className="mr-4 text-xl text-slate-500">🔒</span>
+              <div className="login-field">
+                <span className="login-field-icon">🔒</span>
                 <input
                   type="password"
-                  className="w-full bg-transparent text-base font-black text-[#1a1a1a] outline-none placeholder:text-[#999]"
+                  className="login-field-input"
                   placeholder="Password"
                 />
               </div>
 
-              <button className="mt-2 h-16 w-full rounded-[20px] bg-gradient-to-r from-[#ffc09b] to-[#ff8fb3] text-[17px] font-black uppercase tracking-[0.2em] text-white shadow-lg">
+              <button className="login-submit">
                 {isLogin ? "Log In" : "Register"}
               </button>
 
               <button
                 type="button"
                 onClick={() => setIsLogin((value) => !value)}
-                className="w-full pt-4 text-center text-base font-black text-[#999]"
+                className="login-switch"
               >
                 {isLogin ? "No account? " : "Already have an account? "}
-                <span className="font-black text-[#6A11CB]">
+                <span className="login-switch-accent">
                   {isLogin ? "Register" : "Login"}
                 </span>
               </button>
 
               <Link
                 href="/home"
-                className="block pt-1 text-center text-xs font-bold text-slate-400"
+                className="login-preview-link"
               >
                 Preview app without login
               </Link>

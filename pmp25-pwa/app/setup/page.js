@@ -51,15 +51,12 @@ function ToggleSwitch({ checked, onChange }) {
       type="button"
       onClick={() => onChange(!checked)}
       className={[
-        "relative h-[32px] w-[56px] shrink-0 rounded-full transition",
-        checked ? "bg-[#00D2FF]" : "bg-white/12",
+        "toggle-switch",
+        checked ? "toggle-switch-checked" : "",
       ].join(" ")}
     >
       <span
-        className={[
-          "absolute top-[4px] h-[24px] w-[24px] rounded-full bg-white transition",
-          checked ? "left-[28px]" : "left-[4px]",
-        ].join(" ")}
+        className="toggle-switch-thumb"
       />
     </button>
   );
@@ -75,15 +72,15 @@ function SettingRow({
 }) {
   const content = (
     <>
-      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[16px] bg-[#00D2FF]/10 text-[#00D2FF]">
+      <div className="settings-row-icon">
         <Icon size={22} strokeWidth={2.7} />
       </div>
 
-      <div className="min-w-0 flex-1">
-        <p className="text-[15px] font-black leading-tight text-white">
+      <div className="settings-row-copy">
+        <p className="settings-row-title">
           {title}
         </p>
-        <p className="mt-1 text-[11px] font-bold leading-snug text-white/42">
+        <p className="settings-row-subtitle">
           {subtitle}
         </p>
       </div>
@@ -92,8 +89,7 @@ function SettingRow({
     </>
   );
 
-  const className =
-    "flex min-h-[76px] w-full items-center gap-3 rounded-[26px] bg-[#1d1d20] px-4 py-4 text-left shadow-[0_14px_34px_rgba(0,0,0,0.24)]";
+  const className = "settings-row";
 
   if (href) {
     return (
@@ -242,7 +238,7 @@ export default function SetupPage() {
 
   return (
     <main className="app-root">
-      <div className="phone-frame relative min-h-screen overflow-y-auto bg-[#05070d] text-white">
+      <div className="phone-frame relative min-h-screen overflow-y-auto">
         <section className="px-5 pb-52 pt-8">
           <div className="flex items-center justify-between">
             <div>
@@ -262,19 +258,19 @@ export default function SetupPage() {
                 setDraft(loaded);
                 setStatus("Settings reloaded.");
               }}
-              className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/10 text-[#00D2FF]"
+              className="theme-icon-button"
               title="Reload settings"
             >
               <RefreshCw size={22} strokeWidth={3} />
             </button>
           </div>
 
-          <div className="mt-7 rounded-[30px] bg-[#1d1d20] p-5 shadow-[0_14px_34px_rgba(0,0,0,0.24)]">
-            <div className="flex items-center gap-4">
+          <div className="settings-card mt-7">
+            <div className="identity-row">
               <button
                 type="button"
                 onClick={() => fileRef.current?.click()}
-                className="relative flex h-[82px] w-[82px] shrink-0 items-center justify-center overflow-hidden rounded-full border-[3px] border-white bg-gradient-to-br from-[#6A11CB] to-[#2575FC] shadow-[0_0_28px_rgba(0,210,255,0.30)]"
+                className="avatar-button"
               >
                 {prefs.avatar ? (
                   <img
@@ -286,8 +282,8 @@ export default function SetupPage() {
                   <User size={34} color="white" />
                 )}
 
-                <span className="absolute bottom-0 right-0 flex h-7 w-7 items-center justify-center rounded-full border-[3px] border-white bg-[#00D2FF]">
-                  <Camera size={12} color="white" strokeWidth={3} />
+                <span className="avatar-edit-badge">
+                  <Camera size={12} strokeWidth={3} />
                 </span>
               </button>
 
@@ -300,39 +296,39 @@ export default function SetupPage() {
               />
 
               <div className="min-w-0 flex-1">
-                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-white/40">
+                <p className="profile-kicker">
                   Profile Identity
                 </p>
-                <p className="mt-2 truncate text-[20px] font-black leading-tight text-white">
+                <p className="profile-name">
                   {prefs.name}
                 </p>
-                <p className="mt-1 truncate text-[11px] font-black text-[#00D2FF]">
+                <p className="profile-sub profile-email">
                   {prefs.email}
                 </p>
               </div>
             </div>
 
-            <div className="mt-5 space-y-3">
+            <div className="settings-form-stack">
               <div>
-                <p className="mb-2 text-[10px] font-black uppercase tracking-[0.14em] text-white/38">
+                <p className="field-label">
                   Username
                 </p>
                 <input
                   value={draft.name}
                   onChange={(e) => updateDraft({ name: e.target.value })}
-                  className="w-full rounded-[18px] border border-white/8 bg-white/8 px-4 py-3 text-[14px] font-bold text-white outline-none placeholder:text-white/25"
+                  className="theme-input"
                   placeholder="Your username"
                 />
               </div>
 
               <div>
-                <p className="mb-2 text-[10px] font-black uppercase tracking-[0.14em] text-white/38">
+                <p className="field-label">
                   Gmail / Email
                 </p>
                 <input
                   value={draft.email}
                   onChange={(e) => updateDraft({ email: e.target.value })}
-                  className="w-full rounded-[18px] border border-white/8 bg-white/8 px-4 py-3 text-[14px] font-bold text-white outline-none placeholder:text-white/25"
+                  className="theme-input"
                   placeholder="your.email@gmail.com"
                 />
               </div>
@@ -340,7 +336,7 @@ export default function SetupPage() {
               <button
                 type="button"
                 onClick={saveProfileIdentity}
-                className="flex w-full items-center justify-center gap-2 rounded-[18px] bg-[#00D2FF] px-4 py-3 text-[12px] font-black uppercase tracking-[0.12em] text-white"
+                className="app-primary-button w-full gap-2 px-4"
               >
                 <Save size={16} strokeWidth={3} />
                 Save Profile
@@ -348,15 +344,15 @@ export default function SetupPage() {
             </div>
           </div>
 
-          <p className="mt-7 mb-3 text-[11px] font-black uppercase tracking-[0.18em] text-[#00D2FF]/70">
+          <p className="settings-section-label">
             {isChinese ? "偏好設定" : "Preferences"}
           </p>
 
           <div className="space-y-3">
             <SettingRow
               icon={Moon}
-              title={isChinese ? "深色主題" : "Dark Mode"}
-              subtitle={isChinese ? "夜間高對比度視圖" : "High contrast night view"}
+              title={isChinese ? "外觀模式" : "Appearance"}
+              subtitle={prefs.darkMode ? (isChinese ? "目前使用深色介面" : "Dark interface enabled") : (isChinese ? "目前使用淺色介面" : "Light interface enabled")}
               right={
                 <ToggleSwitch
                   checked={prefs.darkMode}
@@ -378,7 +374,7 @@ export default function SetupPage() {
             />
           </div>
 
-          <p className="mt-7 mb-3 text-[11px] font-black uppercase tracking-[0.18em] text-[#00D2FF]/70">
+          <p className="settings-section-label">
             {isChinese ? "感測器與數據" : "Sensors & Data"}
           </p>
 
@@ -396,7 +392,7 @@ export default function SetupPage() {
             />
           </div>
 
-          <p className="mt-7 mb-3 text-[11px] font-black uppercase tracking-[0.18em] text-[#00D2FF]/70">
+          <p className="settings-section-label">
             {isChinese ? "個人健康配置" : "Health & Activity Profile"}
           </p>
 
@@ -405,11 +401,11 @@ export default function SetupPage() {
             title={isChinese ? "編輯健康配置" : "Edit Health Profile"}
             subtitle={isChinese ? "更新身體狀況與活動量" : "Update body condition and activity profile"}
             href="/profile"
-            right={<ChevronRight size={22} className="text-white/35" />}
+            right={<ChevronRight size={22} className="summary-expand-icon" />}
           />
 
           {status && (
-            <div className="mt-5 rounded-[22px] border border-[#00D2FF]/25 bg-[#00D2FF]/10 px-4 py-3 text-[13px] font-bold leading-relaxed text-white/72">
+            <div className="status-callout">
               {status}
             </div>
           )}
@@ -417,7 +413,7 @@ export default function SetupPage() {
           <button
             type="button"
             onClick={clearHistory}
-            className="mt-7 flex w-full items-center justify-center gap-3 rounded-[24px] border border-[#FF3B30]/25 bg-[#FF3B30]/10 px-4 py-4 text-[13px] font-black text-[#FF3B30]"
+            className="settings-button settings-button-danger mt-7"
           >
             <Trash2 size={19} strokeWidth={2.8} />
             {isChinese ? "清除歷史快取" : "Clear History Cache"}
@@ -426,7 +422,7 @@ export default function SetupPage() {
           <button
             type="button"
             onClick={logout}
-            className="mt-4 flex w-full items-center justify-center gap-3 rounded-[24px] bg-gradient-to-r from-[#6A11CB] to-[#7B0EE8] px-4 py-5 text-[13px] font-black uppercase tracking-[0.14em] text-white shadow-[0_16px_36px_rgba(106,17,203,0.24)]"
+            className="settings-button settings-button-violet mt-4"
           >
             <LogOut size={19} strokeWidth={2.8} />
             {isChinese ? "登出" : "Logout Session"}
@@ -435,17 +431,17 @@ export default function SetupPage() {
           <button
             type="button"
             onClick={sendTestAlert}
-            className="mt-4 flex w-full items-center justify-center gap-3 rounded-[24px] bg-[#00D2FF] px-4 py-5 text-[13px] font-black uppercase tracking-[0.14em] text-white shadow-[0_16px_36px_rgba(0,210,255,0.22)]"
+            className="settings-button settings-button-primary mt-4"
           >
             <Bell size={19} strokeWidth={2.8} />
             {isChinese ? "發送測試提醒" : "Send Test Alert"}
           </button>
 
-          <div className="mb-10 mt-9 text-center">
-            <p className="text-[10px] font-black tracking-[0.16em] text-white/35">
+          <div className="setup-footer">
+            <p className="setup-footer-main">
               BLUE SKY TELEMETRY v2.4.0
             </p>
-            <p className="mt-1 text-[9px] font-extrabold text-white/24">
+            <p className="setup-footer-sub">
               Designed for moenv.gov.tw • Taiwan
             </p>
           </div>

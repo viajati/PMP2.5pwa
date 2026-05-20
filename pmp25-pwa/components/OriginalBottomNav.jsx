@@ -18,12 +18,7 @@ export default function OriginalBottomNav() {
 
   return (
     <nav className="bottom-nav">
-      <div
-        className={[
-          "bottom-nav-panel",
-          prefs.darkMode ? "bottom-nav-panel--dark" : "bottom-nav-panel--light",
-        ].join(" ")}
-      >
+      <div className="bottom-nav-panel">
         {navItems.map((item) => {
           const Icon = item.icon;
           const active =
@@ -39,11 +34,7 @@ export default function OriginalBottomNav() {
               <div
                 className={[
                   "bottom-nav-icon",
-                  active
-                    ? "bottom-nav-icon--active"
-                    : prefs.darkMode
-                      ? ""
-                      : "bottom-nav-icon--light",
+                  active ? "bottom-nav-icon--active" : "",
                 ].join(" ")}
               >
                 <Icon size={20} strokeWidth={active ? 3 : 2.5} />
@@ -52,11 +43,7 @@ export default function OriginalBottomNav() {
               <span
                 className={[
                   "bottom-nav-label",
-                  active
-                    ? "bottom-nav-label--active"
-                    : prefs.darkMode
-                      ? ""
-                      : "bottom-nav-label--light",
+                  active ? "bottom-nav-label--active" : "",
                 ].join(" ")}
               >
                 {prefs.chinese ? item.zh : item.en}

@@ -93,7 +93,7 @@ export default function SummaryPage() {
                   <span className="summary-hero-unit">score</span>
                 </p>
 
-                <p className="mt-3 text-sm font-bold text-white/75">
+                <p className="summary-hero-meta">
                   {today.km} km · {today.minutes} min · {today.segments} segments
                 </p>
               </div>
@@ -109,7 +109,7 @@ export default function SummaryPage() {
 
           <div className="summary-mini-grid mt-5">
             <div className="summary-mini-card">
-              <Footprints className="text-[#00D2FF]" size={21} strokeWidth={3} />
+              <Footprints className="forecast-icon-accent" size={21} strokeWidth={3} />
               <p className="summary-mini-label mt-4">Weekly Distance</p>
               <p className="summary-mini-value">
                 {summary.totalKm}
@@ -118,7 +118,7 @@ export default function SummaryPage() {
             </div>
 
             <div className="summary-mini-card">
-              <Gauge className="text-[#00D2FF]" size={21} strokeWidth={3} />
+              <Gauge className="forecast-icon-accent" size={21} strokeWidth={3} />
               <p className="summary-mini-label mt-4">Weekly Load</p>
               <p className="summary-mini-value">
                 {summary.totalExposure}
@@ -127,7 +127,7 @@ export default function SummaryPage() {
             </div>
 
             <div className="summary-mini-card">
-              <Activity className="text-[#00D2FF]" size={21} strokeWidth={3} />
+              <Activity className="forecast-icon-accent" size={21} strokeWidth={3} />
               <p className="summary-mini-label mt-4">Avg PM2.5</p>
               <p className="summary-mini-value">
                 {summary.avgPm25}
@@ -136,7 +136,7 @@ export default function SummaryPage() {
             </div>
 
             <div className="summary-mini-card">
-              <CalendarDays className="text-[#00D2FF]" size={21} strokeWidth={3} />
+              <CalendarDays className="forecast-icon-accent" size={21} strokeWidth={3} />
               <p className="summary-mini-label mt-4">Active Days</p>
               <p className="summary-mini-value">
                 {summary.activeDays}
@@ -147,11 +147,11 @@ export default function SummaryPage() {
 
           <div className="mt-7 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <BarChart3 className="text-[#00D2FF]" size={22} strokeWidth={3} />
+              <BarChart3 className="forecast-icon-accent" size={22} strokeWidth={3} />
               <h2 className="app-section-title">History Log</h2>
             </div>
 
-            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-white/35">
+            <p className="summary-action-hint">
               Tap to expand
             </p>
           </div>
@@ -193,9 +193,9 @@ export default function SummaryPage() {
                         </span>
 
                         {expanded ? (
-                          <ChevronUp size={16} className="text-white/40" />
+                          <ChevronUp size={16} className="summary-expand-icon" />
                         ) : (
-                          <ChevronDown size={16} className="text-white/40" />
+                          <ChevronDown size={16} className="summary-expand-icon" />
                         )}
                       </div>
                     </div>
@@ -247,7 +247,7 @@ export default function SummaryPage() {
                       </div>
 
                       <div className="mt-3 flex items-center justify-between">
-                        <p className="text-[10px] font-bold text-white/45">
+                        <p className="summary-inline-meta">
                           {day.hits} samples · {day.minutes} min
                         </p>
 
@@ -259,7 +259,7 @@ export default function SummaryPage() {
                       <div className="interval-box">
                         <div className="interval-title-row">
                           <p className="interval-title">Interval breakdown</p>
-                          <p className="text-[9px] font-bold text-white/38">
+                          <p className="interval-subtitle">
                             PM2.5 + load
                           </p>
                         </div>
