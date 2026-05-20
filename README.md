@@ -1,6 +1,6 @@
 # Taiwan Pollution Tracker
 
-A comprehensive mobile and web app for monitoring air pollution and weather conditions across Taiwan. Built with React Native and Expo, featuring real-time pollution data, interactive maps, AI-powered health advice, and user-friendly navigation.
+A comprehensive mobile and web app for monitoring air pollution and weather conditions across Taiwan. Built with React Native/Expo for mobile and Next.js PWA for web, featuring real-time pollution data, interactive maps, AI-powered health advice, and user-friendly navigation.
 
 ## 🌟 Features
 
@@ -26,6 +26,7 @@ A comprehensive mobile and web app for monitoring air pollution and weather cond
 
 ## 🛠️ Tech Stack
 
+### Mobile (React Native)
 - **Framework**: React Native with Expo
 - **Language**: JavaScript (ES6+)
 - **State Management**: React Context API
@@ -33,6 +34,17 @@ A comprehensive mobile and web app for monitoring air pollution and weather cond
 - **Maps**: react-native-maps
 - **Authentication**: Expo Auth Session (Google OAuth)
 - **Storage**: AsyncStorage for local data
+
+### Web (PWA)
+- **Framework**: Next.js 15+
+- **Language**: JavaScript (ES6+)
+- **Styling**: CSS Modules, Tailwind CSS
+- **State Management**: React Context API
+- **Maps**: Interactive mapping components
+- **Authentication**: Next.js Auth integration
+- **Storage**: IndexedDB for offline capability
+
+### Shared
 - **APIs**: Open-Meteo, Google APIs
 - **AI**: Google Gemini for health advice
 
