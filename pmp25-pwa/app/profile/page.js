@@ -168,8 +168,18 @@ export default function ProfilePage() {
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    setPrefs(loadJson(SETUP_KEY, defaultPrefs));
-    setProfile(loadJson(PROFILE_KEY, defaultProfile));
+    let cancelled = false;
+
+    queueMicrotask(() => {
+      if (cancelled) return;
+
+      setPrefs(loadJson(SETUP_KEY, defaultPrefs));
+      setProfile(loadJson(PROFILE_KEY, defaultProfile));
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   function updateProfile(patch) {

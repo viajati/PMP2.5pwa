@@ -4,26 +4,19 @@ import { useEffect, useRef } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
-function dotIcon(color) {
+function dotIcon(tone) {
   return L.divIcon({
-    className: "",
+    className: "app-leaflet-icon",
     html: `
-      <div style="
-        width:18px;
-        height:18px;
-        border-radius:999px;
-        background:${color};
-        border:4px solid white;
-        box-shadow:0 8px 18px rgba(0,0,0,0.35);
-      "></div>
+      <div class="route-dot route-dot--${tone}"></div>
     `,
     iconSize: [18, 18],
     iconAnchor: [9, 9],
   });
 }
 
-const startIcon = dotIcon("#2575FC");
-const endIcon = dotIcon("#FF3B30");
+const startIcon = dotIcon("start");
+const endIcon = dotIcon("end");
 
 export default function RoutePreviewMap({ start, end, routeCoords = [] }) {
   const containerRef = useRef(null);

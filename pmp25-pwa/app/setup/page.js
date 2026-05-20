@@ -123,9 +123,19 @@ export default function SetupPage() {
   const [status, setStatus] = useState("");
 
   useEffect(() => {
-    const loaded = loadPrefs();
-    setPrefs(loaded);
-    setDraft(loaded);
+    let cancelled = false;
+
+    queueMicrotask(() => {
+      if (cancelled) return;
+
+      const loaded = loadPrefs();
+      setPrefs(loaded);
+      setDraft(loaded);
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   function updatePrefs(patch) {

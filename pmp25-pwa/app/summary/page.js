@@ -35,7 +35,15 @@ export default function SummaryPage() {
   }
 
   useEffect(() => {
-    refreshSummary();
+    let cancelled = false;
+
+    queueMicrotask(() => {
+      if (!cancelled) refreshSummary();
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const today = summary.days[0] || {
@@ -59,16 +67,16 @@ export default function SummaryPage() {
   return (
     <main className="app-root">
       <div className="phone-frame relative">
-        <section className="px-5 pb-32 pt-8">
-          <div className="flex items-center justify-between">
+        <section className="app-page-body">
+          <div className="app-page-header">
             <div>
               <p className="screen-kicker">Statistics</p>
-              <h1 className="app-page-title mt-2">Summary</h1>
+              <h1 className="app-page-title">Summary</h1>
             </div>
 
             <button
               onClick={refreshSummary}
-              className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/10 text-[#00D2FF]"
+              className="app-icon-button"
               title="Refresh summary"
             >
               <RefreshCw size={22} strokeWidth={3} />
@@ -295,10 +303,10 @@ export default function SummaryPage() {
             })}
           </div>
 
-          <div className="mt-5 rounded-[26px] border border-white/10 bg-white/8 p-5">
-            <div className="flex items-start gap-3">
-              <ShieldAlert className="mt-1 text-[#00D2FF]" size={22} />
-              <p className="text-sm font-bold leading-6 text-white/62">
+          <div className="app-notice mt-5">
+            <div className="app-notice-content">
+              <ShieldAlert className="app-notice-icon" size={22} />
+              <p className="app-notice-text">
                 This follows the original Summary structure: daily history log,
                 collapsible details, peak/low/average values, and interval
                 breakdowns. The next improvement is storing real PM2.5 per

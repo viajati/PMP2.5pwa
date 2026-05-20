@@ -17,13 +17,11 @@ export default function OriginalBottomNav() {
   const { prefs } = useAppPreferences();
 
   return (
-    <nav className="pointer-events-none fixed inset-x-0 bottom-5 z-[90] mx-auto flex max-w-[430px] justify-center px-5">
+    <nav className="bottom-nav">
       <div
         className={[
-          "pointer-events-auto grid w-full grid-cols-4 rounded-[28px] border p-2 backdrop-blur-xl",
-          prefs.darkMode
-            ? "border-white/10 bg-[#101217]/92 shadow-[0_18px_44px_rgba(0,0,0,0.34)]"
-            : "border-black/8 bg-white/92 shadow-[0_18px_44px_rgba(15,23,42,0.14)]",
+          "bottom-nav-panel",
+          prefs.darkMode ? "bottom-nav-panel--dark" : "bottom-nav-panel--light",
         ].join(" ")}
       >
         {navItems.map((item) => {
@@ -36,16 +34,16 @@ export default function OriginalBottomNav() {
             <Link
               key={item.href}
               href={item.href}
-              className="flex min-w-0 flex-col items-center justify-center gap-1 rounded-[22px] px-2 py-2"
+              className="bottom-nav-link"
             >
               <div
                 className={[
-                  "flex h-10 w-10 items-center justify-center rounded-[18px] transition",
+                  "bottom-nav-icon",
                   active
-                    ? "bg-[#00D2FF] text-white shadow-[0_0_18px_rgba(0,210,255,0.28)]"
+                    ? "bottom-nav-icon--active"
                     : prefs.darkMode
-                      ? "text-white/42"
-                      : "text-slate-400",
+                      ? ""
+                      : "bottom-nav-icon--light",
                 ].join(" ")}
               >
                 <Icon size={20} strokeWidth={active ? 3 : 2.5} />
@@ -53,12 +51,12 @@ export default function OriginalBottomNav() {
 
               <span
                 className={[
-                  "text-[9px] font-black leading-none tracking-[0.04em]",
+                  "bottom-nav-label",
                   active
-                    ? "text-[#00D2FF]"
+                    ? "bottom-nav-label--active"
                     : prefs.darkMode
-                      ? "text-white/34"
-                      : "text-slate-400",
+                      ? ""
+                      : "bottom-nav-label--light",
                 ].join(" ")}
               >
                 {prefs.chinese ? item.zh : item.en}

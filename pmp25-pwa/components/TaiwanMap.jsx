@@ -4,44 +4,14 @@ import { useEffect, useRef } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
-function createPulseIcon(color = "#00D2FF") {
+function createPulseIcon(tone = "cyan") {
   return L.divIcon({
-    className: "",
+    className: "app-leaflet-icon",
     html: `
-      <div style="
-        position: relative;
-        width: 50px;
-        height: 50px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-      ">
-        <div style="
-          position: absolute;
-          width: 54px;
-          height: 54px;
-          border-radius: 999px;
-          background: ${color}44;
-        "></div>
-
-        <div style="
-          width: 40px;
-          height: 40px;
-          border-radius: 999px;
-          background: white;
-          border: 4px solid ${color};
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          box-shadow: 0 10px 25px rgba(0,0,0,0.35);
-        ">
-          <div style="
-            width: 14px;
-            height: 14px;
-            border-radius: 999px;
-            background: ${color};
-            border: 2px solid white;
-          "></div>
+      <div class="map-pulse map-pulse--${tone}">
+        <div class="map-pulse-halo"></div>
+        <div class="map-pulse-core">
+          <div class="map-pulse-dot"></div>
         </div>
       </div>
     `,
@@ -50,8 +20,8 @@ function createPulseIcon(color = "#00D2FF") {
   });
 }
 
-const normalIcon = createPulseIcon("#00D2FF");
-const teleopIcon = createPulseIcon("#56ab91");
+const normalIcon = createPulseIcon("cyan");
+const teleopIcon = createPulseIcon("green");
 
 export default function TaiwanMap({
   location,

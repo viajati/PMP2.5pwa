@@ -68,14 +68,27 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
-    const savedRoute = loadTodayRoute();
-    setTodayPath(savedRoute);
-    setDistance(getTodayDistance(savedRoute));
+    let cancelled = false;
+
+    queueMicrotask(() => {
+      if (cancelled) return;
+
+      const savedRoute = loadTodayRoute();
+      setTodayPath(savedRoute);
+      setDistance(getTodayDistance(savedRoute));
+    });
 
     if (!navigator.geolocation) {
-      setCurrentCity("Hsinchu City");
-      setLocation(CITY_COORDS["Hsinchu City"]);
-      return;
+      queueMicrotask(() => {
+        if (cancelled) return;
+
+        setCurrentCity("Hsinchu City");
+        setLocation(CITY_COORDS["Hsinchu City"]);
+      });
+
+      return () => {
+        cancelled = true;
+      };
     }
 
     navigator.geolocation.getCurrentPosition(
@@ -137,6 +150,7 @@ export default function HomePage() {
     );
 
     return () => {
+      cancelled = true;
       navigator.geolocation.clearWatch(watchId);
     };
   }, [teleopMode]);
@@ -353,8 +367,8 @@ export default function HomePage() {
   }
 
   return (
-    <main className="app-root">
-      <div className="phone-frame-map relative">
+    <main className="app-root home-root">
+      <div className="phone-frame-map">
         <TaiwanMap
           location={location}
           teleopMode={teleopMode}
@@ -367,7 +381,7 @@ export default function HomePage() {
 
         <div className="home-search-wrap">
           <div className="map-search-compact">
-            <Search size={20} strokeWidth={3} className="text-slate-700" />
+            <Search size={20} strokeWidth={3} className="home-search-icon" />
 
             <input
               value={search}
@@ -377,12 +391,12 @@ export default function HomePage() {
               }}
               onFocus={() => setIsSearching(true)}
               placeholder="Search city..."
-              className="ml-3 w-full bg-transparent text-[16px] font-black text-slate-700 outline-none placeholder:text-slate-500"
+              className="home-search-input"
             />
 
             {search.length > 0 && (
-              <button type="button" onClick={closeSearch}>
-                <X size={20} className="text-slate-500" />
+              <button type="button" onClick={closeSearch} className="search-clear-button">
+                <X size={20} />
               </button>
             )}
           </div>
@@ -393,23 +407,21 @@ export default function HomePage() {
             type="button"
             aria-label="Close search"
             onClick={closeSearch}
-            className="absolute inset-0 z-[580] bg-transparent"
+            className="home-search-dismiss"
           />
         )}
 
         {isSearching && (
           <div className="search-panel-compact">
-            <div className="mb-3 flex items-center justify-between gap-3 px-1">
-              <div className="flex gap-2 overflow-x-auto">
+            <div className="search-panel-header">
+              <div className="region-filter-list">
                 {REGION_NAMES.map((region) => (
                   <button
                     key={region}
                     onClick={() => setSelectedRegion(region)}
                     className={[
-                      "rounded-xl px-3 py-2 text-[10px] font-black",
-                      selectedRegion === region
-                        ? "bg-[#00D2FF] text-white"
-                        : "bg-slate-100 text-slate-500",
+                      "region-filter-button",
+                      selectedRegion === region ? "region-filter-button-active" : "",
                     ].join(" ")}
                   >
                     {region}
@@ -420,21 +432,21 @@ export default function HomePage() {
               <button
                 type="button"
                 onClick={closeSearch}
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-black/10 text-slate-600"
+                className="search-panel-close"
               >
                 <X size={18} />
               </button>
             </div>
 
-            <div className="max-h-[40vh] overflow-y-auto">
+            <div className="city-results">
               {filteredCities.map((city) => (
                 <button
                   key={city}
                   onClick={() => handleCitySelect(city)}
-                  className="flex w-full items-center border-b border-slate-100 px-2 py-4 text-left"
+                  className="city-result-button"
                 >
-                  <MapPin size={18} className="mr-3 text-[#00D2FF]" />
-                  <span className="text-sm font-bold">{city}</span>
+                  <MapPin size={18} className="city-result-icon" />
+                  <span className="city-result-name">{city}</span>
                 </button>
               ))}
             </div>
@@ -444,10 +456,10 @@ export default function HomePage() {
         {teleopMode && !isSearching && (
           <div className="simulation-help-card">
             <div className="simulation-pill">Simulation Mode</div>
-            <p className="mt-3 text-sm font-black leading-5">
+            <p className="simulation-title">
               Drag the green marker to simulate movement.
             </p>
-            <p className="mt-2 text-xs font-bold leading-5 text-white/62">
+            <p className="simulation-copy">
               Each marker move adds a route segment. The app estimates exposure
               load across the whole simulated route, not only the final city.
             </p>
@@ -515,7 +527,7 @@ export default function HomePage() {
             </div>
           </div>
 
-          <div className="home-bottom-footer mt-2">
+          <div className="home-bottom-footer">
             <p className="home-bottom-note">
               Avg PM2.5 {routeLoad?.avgPm25 ?? 0} · {routeLoad?.routeMinutes ?? 0} min · {routeLoad?.segmentCount ?? 0} segments
             </p>

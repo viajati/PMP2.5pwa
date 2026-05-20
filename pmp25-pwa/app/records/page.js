@@ -59,10 +59,11 @@ function caqiFrom(pm25, pm10, co) {
 function getWeatherMeta(code, windSpeed = 0) {
   if (windSpeed >= 28) return { Icon: Wind, label: "windy", type: "windy" };
   if ([95, 96, 99].includes(code)) return { Icon: CloudLightning, label: "stormy", type: "storm" };
-  if ([51, 53, 55, 61, 63, 65, 80, 81, 82].includes(code)) return { Icon: CloudRain, label: "rainy", type: "rain" };
+  if ([51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82].includes(code)) return { Icon: CloudRain, label: "rainy", type: "rain" };
   if ([45, 48].includes(code)) return { Icon: CloudFog, label: "foggy", type: "cloudy" };
-  if ([2, 3].includes(code)) return { Icon: Cloud, label: "cloudy", type: "cloudy" };
-  if (code === 1) return { Icon: CloudSun, label: "partly cloudy", type: "sunny" };
+  if (code === 3) return { Icon: Cloud, label: "cloudy", type: "cloudy" };
+  if (code === 2) return { Icon: CloudSun, label: "partly cloudy", type: "partly" };
+  if (code === 1) return { Icon: CloudSun, label: "mostly sunny", type: "partly" };
   return { Icon: Sun, label: "sunny", type: "sunny" };
 }
 
@@ -72,6 +73,7 @@ function heroClass(type, isNight = false) {
   if (type === "rain") return `records2-weather-hero records2-weather-rain-${time}`;
   if (type === "storm") return `records2-weather-hero records2-weather-storm-${time}`;
   if (type === "cloudy") return `records2-weather-hero records2-weather-cloudy-${time}`;
+  if (type === "partly") return `records2-weather-hero records2-weather-partly-${time}`;
   if (type === "windy") return `records2-weather-hero records2-weather-windy-${time}`;
 
   return `records2-weather-hero records2-weather-sunny-${time}`;
@@ -148,7 +150,7 @@ function labelForMode(mode) {
 }
 
 export default function RecordsPage() {
-  const { prefs, t } = useAppPreferences();
+  const { t } = useAppPreferences();
   const [mode, setMode] = useState("LIVE");
   const [region, setRegion] = useState("NORTH");
   const [city, setCity] = useState("Taipei City");
@@ -180,13 +182,17 @@ export default function RecordsPage() {
   }
 
   useEffect(() => {
-    loadData();
+    let cancelled = false;
+
+    queueMicrotask(() => {
+      if (!cancelled) loadData();
+    });
+
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  useEffect(() => {
-    setRouteData(null);
-  }, [startCity, endCity, transport]);
 
   useEffect(() => {
     async function refreshForecast() {
@@ -284,23 +290,23 @@ export default function RecordsPage() {
   return (
     <main className="app-root">
       <div className="phone-frame relative records2-page">
-        <section className="px-5 pb-40 pt-8">
-          <div className="flex items-center justify-between">
+        <section className="app-page-body records-page-body">
+          <div className="app-page-header">
             <div>
               <p className="screen-kicker">{t("Archive", "檔案")}</p>
-              <h1 className="app-page-title mt-2">{t("Records", "紀錄")}</h1>
+              <h1 className="app-page-title">{t("Records", "紀錄")}</h1>
             </div>
 
             <button
               onClick={loadData}
-              className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/10 text-[#00D2FF]"
+              className="app-icon-button"
               title="Refresh records"
             >
               <RefreshCw size={22} strokeWidth={3} className={loading ? "animate-spin" : ""} />
             </button>
           </div>
 
-          <div className="records2-tabs mt-7">
+          <div className="records2-tabs">
             {tabs.map((tab) => (
               <button
                 key={tab}
@@ -317,7 +323,7 @@ export default function RecordsPage() {
 
           {mode === "LIVE" && (
             <>
-              <div className={`${heroClass(weather.type, isNight)} mt-7`}>
+              <div className={heroClass(weather.type, isNight)}>
                 <p className="records2-weather-city">
                   {city.replace(" City", "")}
                 </p>
@@ -350,10 +356,10 @@ export default function RecordsPage() {
                 </div>
               </div>
 
-              <div className="records2-advice mt-5">
-                <div className="flex items-start gap-3">
-                  <Sparkles size={22} className="mt-1 text-[#00D2FF]" />
-                  <p className="text-sm font-bold leading-6 text-white/72">
+              <div className="records2-advice">
+                <div className="app-notice-content">
+                  <Sparkles size={22} className="app-notice-icon" />
+                  <p className="app-notice-text">
                     Safety: Air quality in {city} is {selected?.pm25 ?? 0} µg/m³.
                     {selected?.pm25 > 35
                       ? " Consider reducing prolonged outdoor activity."
@@ -362,7 +368,7 @@ export default function RecordsPage() {
                 </div>
               </div>
 
-              <div className="records2-region-grid mt-5">
+              <div className="records2-region-grid">
                 {regions.map((item) => (
                   <button
                     key={regionLabel[item]}
@@ -377,16 +383,16 @@ export default function RecordsPage() {
                 ))}
               </div>
 
-              <div className="mt-5 flex items-center justify-between">
+              <div className="records-section-header">
                 <h2 className="app-section-title">{regionLabel[region]} {t("Cities", "城市")}</h2>
-                <p className="text-[10px] font-black text-[#00D2FF]">
+                <p className="records-section-meta">
                   {loading
                     ? "Loading..."
                     : `Fetch: ${(selected?.time || "Now").split(" ")[1] || selected?.time}`}
                 </p>
               </div>
 
-              <div className="mt-4 space-y-3">
+              <div className="records-list">
                 {filteredRows.map((item) => {
                   const meta = getWeatherMeta(item.weatherCode, item.windSpeed);
                   const Icon = meta.Icon;
@@ -402,26 +408,26 @@ export default function RecordsPage() {
                       ].join(" ")}
                     >
                       <div
-                        className="h-12 w-1.5 rounded-full"
-                        style={{ backgroundColor: pmColor(item.pm25) }}
+                        className="records-status-strip"
+                        style={{ "--status-color": pmColor(item.pm25) }}
                       />
 
                       <div className="records2-icon-circle">
                         <Icon size={23} strokeWidth={3} />
                       </div>
 
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-base font-black text-white">
+                      <div className="records-row-copy">
+                        <p className="records-row-title">
                           {item.county}
                         </p>
-                        <p className="mt-1 text-xs font-bold text-white/40">
+                        <p className="records-row-meta">
                           {meta.label} · Hum {item.humidity ?? "-"}% · Wind {item.windSpeed ?? "-"} km/h
                         </p>
                       </div>
 
-                      <p className="text-xl font-black text-white">
+                      <p className="records-row-value">
                         {item.pm25}
-                        <span className="ml-1 text-[10px] text-white/40">µg</span>
+                        <span className="records-row-unit">µg</span>
                       </p>
                     </button>
                   );
@@ -433,20 +439,23 @@ export default function RecordsPage() {
           {mode === "PLANNER" && (
             <>
               <div className="records2-advice">
-                <div className="flex items-start gap-3">
-                  <Route size={22} className="mt-1 text-[#00D2FF]" />
-                  <p className="text-sm font-bold leading-6 text-white/72">
+                <div className="app-notice-content">
+                  <Route size={22} className="app-notice-icon" />
+                  <p className="app-notice-text">
                     Calculate Route gets the road distance and duration, then estimates exposure load from PM2.5 × travel time × transport exposure.
                   </p>
                 </div>
               </div>
 
-              <div className="mt-5 grid grid-cols-2 gap-4">
+              <div className="records-form-grid">
                 <div className="records2-card">
                   <p className="records2-label">Origin</p>
                   <select
                     value={startCity}
-                    onChange={(e) => setStartCity(e.target.value)}
+                    onChange={(e) => {
+                      setStartCity(e.target.value);
+                      setRouteData(null);
+                    }}
                     className="records2-select"
                   >
                     {Object.keys(CITY_COORDS).map((item) => (
@@ -459,7 +468,10 @@ export default function RecordsPage() {
                   <p className="records2-label">Destination</p>
                   <select
                     value={endCity}
-                    onChange={(e) => setEndCity(e.target.value)}
+                    onChange={(e) => {
+                      setEndCity(e.target.value);
+                      setRouteData(null);
+                    }}
                     className="records2-select"
                   >
                     {Object.keys(CITY_COORDS).map((item) => (
@@ -469,8 +481,8 @@ export default function RecordsPage() {
                 </div>
               </div>
 
-              <div className="mt-5 flex items-center justify-between gap-3">
-                <div className="flex gap-3">
+              <div className="records-toolbar">
+                <div className="records-transport-group">
                   {transportItems.map((item) => {
                     const Icon = item.icon;
                     const active = transport === item.key;
@@ -478,7 +490,10 @@ export default function RecordsPage() {
                     return (
                       <button
                         key={item.key}
-                        onClick={() => setTransport(item.key)}
+                        onClick={() => {
+                          setTransport(item.key);
+                          setRouteData(null);
+                        }}
                         className={[
                           "records2-transport",
                           active ? "records2-transport-active" : "",
@@ -493,14 +508,15 @@ export default function RecordsPage() {
 
                 <button
                   onClick={calculateRoute}
-                  className="rounded-full bg-[#00D2FF] px-6 py-4 text-[11px] font-black uppercase tracking-[0.14em] text-white"
+                  disabled={routeLoading}
+                  className="records-primary-button"
                 >
-                  CALCULATE
+                  {routeLoading ? "CALCULATING" : "CALCULATE"}
                 </button>
               </div>
 
-              <div className="records2-card mt-5">
-                <div className="flex items-center justify-between">
+              <div className="records2-card records-route-card">
+                <div className="records-route-header">
                   <div>
                     <p className="records2-label">Estimated Route</p>
                     <p className="records2-value">
@@ -509,13 +525,13 @@ export default function RecordsPage() {
                     </p>
                   </div>
 
-                  <Navigation size={40} strokeWidth={2.8} className="text-[#00D2FF]" />
+                  <Navigation size={34} strokeWidth={2.8} className="app-notice-icon" />
                 </div>
 
-                <div className="mt-5 grid grid-cols-2 gap-3">
+                <div className="records-metric-grid">
                   <div className="records2-soft">
                     <p className="records2-label">Time</p>
-                    <p className="records2-value text-[22px]">
+                    <p className="records2-value records2-value-sm">
                       {Math.round(displayedDuration)}
                       <span className="records2-unit">min</span>
                     </p>
@@ -523,15 +539,18 @@ export default function RecordsPage() {
 
                   <div className="records2-soft">
                     <p className="records2-label">Avg PM2.5</p>
-                    <p className="records2-value text-[22px]">
+                    <p className="records2-value records2-value-sm">
                       {avgRoutePm25}
                       <span className="records2-unit">µg/m³</span>
                     </p>
                   </div>
 
-                  <div className="records2-soft col-span-2">
+                  <div className="records2-soft records-metric-span">
                     <p className="records2-label">Exposure Load</p>
-                    <p className="records2-value text-[28px]" style={{ color: pmColor(avgRoutePm25) }}>
+                    <p
+                      className="records2-value records2-value-md"
+                      style={{ "--value-color": pmColor(avgRoutePm25) }}
+                    >
                       {displayedLoad}
                       <span className="records2-unit">score</span>
                     </p>
@@ -539,7 +558,7 @@ export default function RecordsPage() {
                 </div>
               </div>
 
-              <div className="records2-map-preview mt-5">
+              <div className="records2-map-preview">
                 <RoutePreviewMap
                   start={CITY_COORDS[startCity]}
                   end={CITY_COORDS[endCity]}
@@ -547,7 +566,7 @@ export default function RecordsPage() {
                 />
               </div>
 
-              <p className="mt-3 text-xs font-bold leading-5 text-white/45">
+              <p className="records-map-note">
                 Blue marker = origin. Red marker = destination. Cyan line = calculated route.
               </p>
             </>
@@ -556,9 +575,9 @@ export default function RecordsPage() {
           {mode === "FORECAST" && (
             <div className="forecast-shell forecast-compact">
               <div className="records2-advice">
-                <div className="flex items-start gap-3">
-                  <Sparkles size={22} className="mt-1 text-[#00D2FF]" />
-                  <p className="text-sm font-bold leading-6 text-white/72">
+                <div className="app-notice-content">
+                  <Sparkles size={22} className="app-notice-icon" />
+                  <p className="app-notice-text">
                     Trend: {drift > 0 ? "PM2.5 may increase tomorrow." : "Stable or lower PM2.5 expected tomorrow."}
                   </p>
                 </div>
@@ -569,7 +588,7 @@ export default function RecordsPage() {
                   <div className="forecast-summary-top">
                     <div>
                       <p className="forecast-label">City Prediction</p>
-                      <p className="mt-2 text-xl font-black text-white">
+                      <p className="forecast-city-name">
                         {city}
                       </p>
                     </div>
@@ -587,8 +606,8 @@ export default function RecordsPage() {
                       <span
                         className="forecast-risk-pill"
                         style={{
-                          backgroundColor: `${pmColor(selected?.pm25 || 0)}22`,
-                          color: pmColor(selected?.pm25 || 0),
+                          "--risk-bg": `${pmColor(selected?.pm25 || 0)}22`,
+                          "--risk-color": pmColor(selected?.pm25 || 0),
                         }}
                       >
                         {riskLabel(selected?.pm25 || 0)}
@@ -625,7 +644,7 @@ export default function RecordsPage() {
                     <div className="forecast-metric-row">
                       <p
                         className="forecast-metric-value"
-                        style={{ color: pmColor(selected?.pm25 || 0) }}
+                        style={{ "--value-color": pmColor(selected?.pm25 || 0) }}
                       >
                         {selected?.pm25 || 0}
                       </p>
@@ -638,10 +657,10 @@ export default function RecordsPage() {
                     <p className="forecast-metric-sub">Coarse particles</p>
 
                     <div className="forecast-metric-row">
-                      <p className="forecast-metric-value text-[#FFCC00]">
+                      <p className="forecast-metric-value forecast-metric-warn">
                         {selected?.pm10 || 0}
                       </p>
-                      <Cloud size={20} className="text-[#FFCC00]" />
+                      <Cloud size={20} className="forecast-icon-warn" />
                     </div>
                   </div>
 
@@ -650,10 +669,10 @@ export default function RecordsPage() {
                     <p className="forecast-metric-sub">Carbon monoxide</p>
 
                     <div className="forecast-metric-row">
-                      <p className="forecast-metric-value text-[#34C759]">
+                      <p className="forecast-metric-value forecast-metric-good">
                         {selected?.co || 0}
                       </p>
-                      <Leaf size={20} className="text-[#34C759]" />
+                      <Leaf size={20} className="forecast-icon-good" />
                     </div>
                   </div>
                 </div>
@@ -664,28 +683,28 @@ export default function RecordsPage() {
 
                 <div className="forecast-future-grid">
                   <div className="forecast-future-cell">
-                    <Cloud size={22} className="text-white/35" />
+                    <Cloud size={22} className="forecast-icon-muted" />
                     <p className="forecast-future-value">{tomorrow.pm25 || 0}</p>
                     <p className="forecast-future-label">PM2.5</p>
                   </div>
 
                   <div className="forecast-future-cell">
-                    <TrendingUp size={22} className="text-white/35" />
+                    <TrendingUp size={22} className="forecast-icon-muted" />
                     <p className="forecast-future-value">{tomorrow.pm10 || 0}</p>
                     <p className="forecast-future-label">PM10</p>
                   </div>
 
                   <div className="forecast-future-cell">
-                    <Leaf size={22} className="text-white/35" />
+                    <Leaf size={22} className="forecast-icon-muted" />
                     <p className="forecast-future-value">{tomorrow.co || 0}</p>
                     <p className="forecast-future-label">CO</p>
                   </div>
 
                   <div className="forecast-future-cell">
-                    <Navigation size={22} className="text-white/35" />
+                    <Navigation size={22} className="forecast-icon-muted" />
                     <p
                       className="forecast-future-value"
-                      style={{ color: drift <= 0 ? "#34C759" : "#FF3B30" }}
+                      style={{ "--value-color": drift <= 0 ? "#34C759" : "#FF3B30" }}
                     >
                       {drift}
                     </p>
@@ -702,7 +721,7 @@ export default function RecordsPage() {
                     {dailyPrediction.map((day) => (
                       <div key={day.date}>
                         <p className="forecast-week-day">{day.day}</p>
-                        <Cloud size={21} className="mx-auto mt-3 text-[#00D2FF]" />
+                        <Cloud size={21} className="forecast-icon-accent" />
                         <p className="forecast-week-value">{day.pm25}</p>
                       </div>
                     ))}
@@ -710,17 +729,17 @@ export default function RecordsPage() {
 
                   <div className="forecast-chart-row">
                     {dailyPrediction.map((day) => (
-                      <div key={day.date} className="flex flex-1 flex-col items-center">
+                      <div key={day.date} className="forecast-chart-column">
                         <div
-                          className="w-2 rounded-full bg-[#00D2FF]"
+                          className="forecast-chart-bar"
                           style={{ height: `${Math.max(16, day.pm25 * 1.5)}px` }}
                         />
-                        <div className="mt-2 h-2 w-2 rounded-full bg-[#1d1d20] ring-2 ring-[#00D2FF]" />
+                        <div className="forecast-chart-dot" />
                       </div>
                     ))}
                   </div>
 
-                  <p className="mt-7 text-center text-[10px] font-black tracking-[0.14em] text-white/32">
+                  <p className="forecast-updated-at">
                     Last predicted: {new Date().toLocaleString()}
                   </p>
                 </div>

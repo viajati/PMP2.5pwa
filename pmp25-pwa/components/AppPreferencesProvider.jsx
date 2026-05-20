@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
 export const PREFS_KEY = "pmp25_setup_preferences";
 
@@ -42,7 +42,11 @@ export function AppPreferencesProvider({ children }) {
   const [prefs, setPrefsState] = useState(DEFAULT_PREFS);
 
   useEffect(() => {
-    setPrefsState(readPrefs());
+    let cancelled = false;
+
+    queueMicrotask(() => {
+      if (!cancelled) setPrefsState(readPrefs());
+    });
 
     function syncPrefs() {
       setPrefsState(readPrefs());
@@ -52,6 +56,7 @@ export function AppPreferencesProvider({ children }) {
     window.addEventListener("pmp25:prefs-changed", syncPrefs);
 
     return () => {
+      cancelled = true;
       window.removeEventListener("storage", syncPrefs);
       window.removeEventListener("pmp25:prefs-changed", syncPrefs);
     };
@@ -65,23 +70,26 @@ export function AppPreferencesProvider({ children }) {
     document.body.classList.toggle("theme-light", !prefs.darkMode);
   }, [prefs.darkMode, prefs.chinese]);
 
-  function setPrefs(nextPrefs) {
+  const setPrefs = useCallback((nextPrefs) => {
     setPrefsState(nextPrefs);
     writePrefs(nextPrefs);
-  }
+  }, []);
 
-  function updatePrefs(patch) {
-    const nextPrefs = {
-      ...prefs,
-      ...patch,
-    };
+  const updatePrefs = useCallback((patch) => {
+    setPrefsState((current) => {
+      const nextPrefs = {
+        ...current,
+        ...patch,
+      };
 
-    setPrefs(nextPrefs);
-  }
+      writePrefs(nextPrefs);
+      return nextPrefs;
+    });
+  }, []);
 
-  function t(en, zh) {
+  const t = useCallback((en, zh) => {
     return prefs.chinese ? zh : en;
-  }
+  }, [prefs.chinese]);
 
   const value = useMemo(
     () => ({
@@ -90,7 +98,7 @@ export function AppPreferencesProvider({ children }) {
       updatePrefs,
       t,
     }),
-    [prefs]
+    [prefs, setPrefs, updatePrefs, t]
   );
 
   return (

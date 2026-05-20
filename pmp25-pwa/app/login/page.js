@@ -44,11 +44,16 @@ export default function LoginPage() {
   );
 
   useEffect(() => {
-    setMounted(true);
-    setCurrentTime(new Date());
+    const firstTick = window.setTimeout(() => {
+      setMounted(true);
+      setCurrentTime(new Date());
+    }, 0);
 
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-    return () => clearInterval(timer);
+    return () => {
+      window.clearTimeout(firstTick);
+      clearInterval(timer);
+    };
   }, []);
 
   useEffect(() => {
