@@ -17,6 +17,7 @@ import {
   User,
   Wrench,
 } from "lucide-react";
+import { useAppPreferences } from "@/components/AppPreferencesProvider";
 
 const SETUP_KEY = "pmp25_setup_preferences";
 const PROFILE_KEY = "pmp25_health_profile";
@@ -36,12 +37,12 @@ const defaultProfile = {
 const ageLabels = ["<18", "18–35", "36–60", "60+"];
 
 const conditionOptions = [
-  { id: "asthma", label: "Asthma", icon: Sparkles },
-  { id: "dust", label: "Dust Allergies", icon: Snowflake },
-  { id: "sensitivity", label: "Air Sensitivity", icon: Leaf },
-  { id: "allergies", label: "Pollen Allergies", icon: Flower },
-  { id: "cardio", label: "Heart Vitality", icon: Heart },
-  { id: "outdoor", label: "Outdoor Worker", icon: Wrench },
+  { id: "asthma", label: "Asthma", zh: "氣喘", icon: Sparkles },
+  { id: "dust", label: "Dust Allergies", zh: "塵蟎過敏", icon: Snowflake },
+  { id: "sensitivity", label: "Air Sensitivity", zh: "空氣敏感", icon: Leaf },
+  { id: "allergies", label: "Pollen Allergies", zh: "花粉過敏", icon: Flower },
+  { id: "cardio", label: "Heart Vitality", zh: "心血管照護", icon: Heart },
+  { id: "outdoor", label: "Outdoor Worker", zh: "戶外工作者", icon: Wrench },
 ];
 
 function loadJson(key, fallback) {
@@ -60,34 +61,40 @@ function saveJson(key, value) {
   localStorage.setItem(key, JSON.stringify(value));
 }
 
-function ageStory(level) {
-  if (level === 1) return "Young and more vulnerable to poor air.";
-  if (level === 2) return "Active adult with balanced exposure risk.";
-  if (level === 3) return "Stable routine with moderate sensitivity.";
-  return "Older adult with higher protection priority.";
+function ageStory(level, chinese) {
+  if (level === 1) return chinese ? "年紀較小，對空氣污染更敏感。" : "Young and more vulnerable to poor air.";
+  if (level === 2) return chinese ? "活躍成人，暴露風險較平衡。" : "Active adult with balanced exposure risk.";
+  if (level === 3) return chinese ? "生活穩定，具有中度敏感度。" : "Stable routine with moderate sensitivity.";
+  return chinese ? "高齡族群，需要更高保護優先度。" : "Older adult with higher protection priority.";
 }
 
-function vitalityStory(selected) {
-  if (!selected?.length) return "No special sensitivity selected.";
+function vitalityStory(selected, chinese) {
+  if (!selected?.length) return chinese ? "尚未選擇特殊敏感因子。" : "No special sensitivity selected.";
 
   if (selected.length === 1) {
     const found = conditionOptions.find((item) => item.id === selected[0]);
-    return found ? `${found.label} selected.` : "Health sensitivity selected.";
+    return found
+      ? chinese
+        ? `已選擇${found.zh}。`
+        : `${found.label} selected.`
+      : chinese
+        ? "已選擇健康敏感因子。"
+        : "Health sensitivity selected.";
   }
 
-  return `${selected.length} sensitivity factors selected.`;
+  return chinese ? `已選擇 ${selected.length} 個敏感因子。` : `${selected.length} sensitivity factors selected.`;
 }
 
-function activityStory(level) {
-  if (level === 1) return "Low outdoor movement.";
-  if (level === 2) return "Moderate daily movement.";
-  return "High outdoor activity and ventilation.";
+function activityStory(level, chinese) {
+  if (level === 1) return chinese ? "戶外活動較低。" : "Low outdoor movement.";
+  if (level === 2) return chinese ? "日常活動量中等。" : "Moderate daily movement.";
+  return chinese ? "戶外活動與通風接觸較高。" : "High outdoor activity and ventilation.";
 }
 
-function fitnessStory(level) {
-  if (level === 1) return "Soft baseline.";
-  if (level === 2) return "Steady fitness.";
-  return "Strong fitness and higher exertion.";
+function fitnessStory(level, chinese) {
+  if (level === 1) return chinese ? "身體基準較溫和。" : "Soft baseline.";
+  if (level === 2) return chinese ? "體能狀態穩定。" : "Steady fitness.";
+  return chinese ? "體能較強，活動強度較高。" : "Strong fitness and higher exertion.";
 }
 
 function StoryCard({ icon: Icon, title, text }) {
@@ -162,6 +169,8 @@ function SliderBlock({
 }
 
 export default function ProfilePage() {
+  const { prefs: appPrefs, t } = useAppPreferences();
+  const isChinese = appPrefs.chinese;
   const fileRef = useRef(null);
   const [prefs, setPrefs] = useState(defaultPrefs);
   const [profile, setProfile] = useState(defaultProfile);
@@ -219,8 +228,8 @@ export default function ProfilePage() {
   return (
     <main className="app-root">
       <div className="phone-frame relative min-h-screen overflow-y-auto">
-        <section className="px-5 pb-40 pt-8">
-          <div className="flex items-center justify-between">
+        <section className="app-page-body profile-page-body">
+          <div className="app-page-header">
             <Link
               href="/setup"
               className="theme-icon-button"
@@ -229,12 +238,12 @@ export default function ProfilePage() {
             </Link>
 
             <div className="text-right">
-              <p className="screen-kicker">Profile</p>
-              <h1 className="app-page-title mt-2">Health</h1>
+              <p className="screen-kicker">{t("Profile", "個人檔案")}</p>
+              <h1 className="app-page-title mt-2">{t("Health", "健康")}</h1>
             </div>
           </div>
 
-          <div className="profile-card mt-7">
+          <div className="profile-card profile-identity-card">
             <div className="identity-row">
               <button
                 type="button"
@@ -244,7 +253,7 @@ export default function ProfilePage() {
                 {prefs.avatar ? (
                   <img
                     src={prefs.avatar}
-                    alt="Profile avatar"
+                    alt={t("Profile avatar", "個人頭像")}
                     className="h-full w-full object-cover"
                   />
                 ) : (
@@ -266,13 +275,13 @@ export default function ProfilePage() {
 
               <div className="min-w-0 flex-1">
                 <p className="profile-kicker">
-                  Personalize
+                  {t("Personalize", "個人化")}
                 </p>
                 <p className="profile-name">
-                  Hi, {prefs.name || "User"}
+                  {t("Hi", "嗨")}，{prefs.name || t("User", "使用者")}
                 </p>
                 <p className="profile-sub">
-                  Health and activity profile
+                  {t("Health and activity profile", "健康與活動設定")}
                 </p>
               </div>
             </div>
@@ -281,33 +290,33 @@ export default function ProfilePage() {
           <div className="story-grid">
             <StoryCard
               icon={CalendarDays}
-              title="Era"
-              text={ageStory(profile.ageLevel)}
+              title={t("Era", "年齡")}
+              text={ageStory(profile.ageLevel, isChinese)}
             />
 
             <StoryCard
               icon={Heart}
-              title="Vitality"
-              text={vitalityStory(profile.conditions)}
+              title={t("Vitality", "敏感度")}
+              text={vitalityStory(profile.conditions, isChinese)}
             />
 
             <StoryCard
               icon={Activity}
-              title="Lifestyle"
-              text={activityStory(profile.activityLevel)}
+              title={t("Lifestyle", "生活型態")}
+              text={activityStory(profile.activityLevel, isChinese)}
             />
 
             <StoryCard
               icon={ShieldCheck}
-              title="Strength"
-              text={fitnessStory(profile.fitnessLevel)}
+              title={t("Strength", "體能")}
+              text={fitnessStory(profile.fitnessLevel, isChinese)}
             />
           </div>
 
-          <SectionTitle>Life Era</SectionTitle>
+          <SectionTitle>{t("Life Era", "年齡階段")}</SectionTitle>
 
           <SliderBlock
-            title="Age Group"
+            title={t("Age Group", "年齡族群")}
             value={profile.ageLevel}
             min={1}
             max={4}
@@ -315,7 +324,7 @@ export default function ProfilePage() {
             onChange={(value) => updateProfile({ ageLevel: value })}
           />
 
-          <SectionTitle>Health Conditions</SectionTitle>
+          <SectionTitle>{t("Health Conditions", "健康狀況")}</SectionTitle>
 
           <div className="condition-panel">
             <div className="condition-list">
@@ -336,32 +345,32 @@ export default function ProfilePage() {
                     ].join(" ")}
                   >
                     <Icon size={16} strokeWidth={2.8} />
-                    {item.label}
+                    {isChinese ? item.zh : item.label}
                   </button>
                 );
               })}
             </div>
           </div>
 
-          <SectionTitle>Movement Flow</SectionTitle>
+          <SectionTitle>{t("Movement Flow", "活動量")}</SectionTitle>
 
           <SliderBlock
-            title="Activity Level"
+            title={t("Activity Level", "活動程度")}
             value={profile.activityLevel}
             min={1}
             max={3}
-            labels={["Quiet", "Flow", "Vibrant"]}
+            labels={isChinese ? ["低", "中", "高"] : ["Quiet", "Flow", "Vibrant"]}
             onChange={(value) => updateProfile({ activityLevel: value })}
           />
 
-          <SectionTitle>Soul Strength</SectionTitle>
+          <SectionTitle>{t("Body Strength", "體能強度")}</SectionTitle>
 
           <SliderBlock
-            title="Fitness Level"
+            title={t("Fitness Level", "體能等級")}
             value={profile.fitnessLevel}
             min={1}
             max={3}
-            labels={["Soft", "Steady", "Strong"]}
+            labels={isChinese ? ["柔和", "穩定", "強"] : ["Soft", "Steady", "Strong"]}
             colorClass="theme-range-rose"
             onChange={(value) => updateProfile({ fitnessLevel: value })}
           />
@@ -372,12 +381,12 @@ export default function ProfilePage() {
             className="settings-button settings-button-primary mt-8"
           >
             <Save size={19} strokeWidth={2.8} />
-            Update Profile
+            {t("Update Profile", "更新個人檔案")}
           </button>
 
           {saved && (
             <div className="status-callout text-center">
-              Profile updated.
+              {t("Profile updated.", "個人檔案已更新。")}
             </div>
           )}
 
@@ -385,7 +394,7 @@ export default function ProfilePage() {
             href="/setup"
             className="profile-back-link"
           >
-            Back to Setup
+            {t("Back to Setup", "返回設定")}
           </Link>
         </section>
       </div>

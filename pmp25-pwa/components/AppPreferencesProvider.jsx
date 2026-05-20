@@ -65,6 +65,7 @@ export function AppPreferencesProvider({ children }) {
   useEffect(() => {
     document.documentElement.dataset.theme = prefs.darkMode ? "dark" : "light";
     document.documentElement.dataset.lang = prefs.chinese ? "zh" : "en";
+    document.documentElement.lang = prefs.chinese ? "zh-Hant" : "en";
 
     document.body.classList.toggle("theme-dark", prefs.darkMode);
     document.body.classList.toggle("theme-light", !prefs.darkMode);
@@ -88,7 +89,7 @@ export function AppPreferencesProvider({ children }) {
   }, []);
 
   const t = useCallback((en, zh) => {
-    return prefs.chinese ? zh : en;
+    return prefs.chinese ? (zh ?? en) : en;
   }, [prefs.chinese]);
 
   const value = useMemo(

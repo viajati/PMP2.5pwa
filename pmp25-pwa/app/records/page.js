@@ -23,6 +23,7 @@ import {
 import OriginalBottomNav from "@/components/OriginalBottomNav";
 import { useAppPreferences } from "@/components/AppPreferencesProvider";
 import { CITY_COORDS, REGIONS } from "@/lib/cities";
+import { WEEKDAY_ZH, cityName, regionName, riskName, weatherName } from "@/lib/i18n";
 import {
   buildDailyPrediction,
   fetchAllCityAirQuality,
@@ -150,7 +151,8 @@ function labelForMode(mode) {
 }
 
 export default function RecordsPage() {
-  const { t } = useAppPreferences();
+  const { prefs, t } = useAppPreferences();
+  const isChinese = prefs.chinese;
   const [mode, setMode] = useState("LIVE");
   const [region, setRegion] = useState("NORTH");
   const [city, setCity] = useState("Taipei City");
@@ -233,9 +235,9 @@ export default function RecordsPage() {
   const displayedLoad = routeData?.load ?? routeLoad;
 
   const transportItems = [
-    { key: "car", label: "CAR", icon: Car },
-    { key: "bike", label: "BIKE", icon: Bike },
-    { key: "walk", label: "WALK", icon: Footprints },
+    { key: "car", label: t("CAR", "開車"), icon: Car },
+    { key: "bike", label: t("BIKE", "騎車"), icon: Bike },
+    { key: "walk", label: t("WALK", "步行"), icon: Footprints },
   ];
 
   const tabLabel = {
@@ -245,11 +247,17 @@ export default function RecordsPage() {
   };
 
   const regionLabel = {
-    NORTH: t("NORTH", "北部"),
-    WEST: t("WEST", "西部"),
-    SOUTH: t("SOUTH", "南部"),
-    EAST: t("EAST", "東部"),
+    NORTH: regionName("NORTH", isChinese),
+    WEST: regionName("WEST", isChinese),
+    SOUTH: regionName("SOUTH", isChinese),
+    EAST: regionName("EAST", isChinese),
   };
+
+  function forecastDayLabel(day) {
+    if (!isChinese) return day.day;
+    const date = new Date(day.date);
+    return WEEKDAY_ZH[date.getDay()] || day.day;
+  }
 
   async function calculateRoute() {
     if (startCity === endCity) {
@@ -300,7 +308,7 @@ export default function RecordsPage() {
             <button
               onClick={loadData}
               className="app-icon-button"
-              title="Refresh records"
+              title={t("Refresh records", "重新整理紀錄")}
             >
               <RefreshCw size={22} strokeWidth={3} className={loading ? "animate-spin" : ""} />
             </button>
@@ -325,7 +333,7 @@ export default function RecordsPage() {
             <>
               <div className={heroClass(weather.type, isNight)}>
                 <p className="records2-weather-city">
-                  {city.replace(" City", "")}
+                  {cityName(city, isChinese)}
                 </p>
 
                 <p className="records2-weather-temp">
@@ -335,22 +343,22 @@ export default function RecordsPage() {
 
                 <div className="records2-weather-condition">
                   <WeatherIcon size={28} strokeWidth={3} />
-                  <span>{weather.label} · CAQI {caqi}%</span>
+                  <span>{weatherName(weather.label, isChinese)} · CAQI {caqi}%</span>
                 </div>
 
                 <div className="records2-bubble-grid">
                   <div className="records2-bubble">
-                    <p className="records2-bubble-label">Temp</p>
+                    <p className="records2-bubble-label">{t("Temp", "氣溫")}</p>
                     <p className="records2-bubble-value">{selected?.temp ?? "-"}°</p>
                   </div>
 
                   <div className="records2-bubble">
-                    <p className="records2-bubble-label">Wind</p>
+                    <p className="records2-bubble-label">{t("Wind", "風速")}</p>
                     <p className="records2-bubble-value">{selected?.windSpeed ?? "-"}km</p>
                   </div>
 
                   <div className="records2-bubble">
-                    <p className="records2-bubble-label">Humidity</p>
+                    <p className="records2-bubble-label">{t("Humidity", "濕度")}</p>
                     <p className="records2-bubble-value">{selected?.humidity ?? "-"}%</p>
                   </div>
                 </div>
@@ -360,10 +368,15 @@ export default function RecordsPage() {
                 <div className="app-notice-content">
                   <Sparkles size={22} className="app-notice-icon" />
                   <p className="app-notice-text">
-                    Safety: Air quality in {city} is {selected?.pm25 ?? 0} µg/m³.
                     {selected?.pm25 > 35
-                      ? " Consider reducing prolonged outdoor activity."
-                      : " Stay safe."}
+                      ? t(
+                        `Safety: Air quality in ${cityName(city, false)} is ${selected?.pm25 ?? 0} µg/m³. Consider reducing prolonged outdoor activity.`,
+                        `安全提醒：${cityName(city, true)}的空氣品質為 ${selected?.pm25 ?? 0} µg/m³，建議減少長時間戶外活動。`
+                      )
+                      : t(
+                        `Safety: Air quality in ${cityName(city, false)} is ${selected?.pm25 ?? 0} µg/m³. Stay safe.`,
+                        `安全提醒：${cityName(city, true)}的空氣品質為 ${selected?.pm25 ?? 0} µg/m³，請持續留意。`
+                      )}
                   </p>
                 </div>
               </div>
@@ -387,8 +400,8 @@ export default function RecordsPage() {
                 <h2 className="app-section-title">{regionLabel[region]} {t("Cities", "城市")}</h2>
                 <p className="records-section-meta">
                   {loading
-                    ? "Loading..."
-                    : `Fetch: ${(selected?.time || "Now").split(" ")[1] || selected?.time}`}
+                    ? t("Loading...", "載入中...")
+                    : `${t("Fetch", "更新")}: ${(selected?.time || t("Now", "現在")).split(" ")[1] || selected?.time}`}
                 </p>
               </div>
 
@@ -418,10 +431,10 @@ export default function RecordsPage() {
 
                       <div className="records-row-copy">
                         <p className="records-row-title">
-                          {item.county}
+                          {cityName(item.county, isChinese)}
                         </p>
                         <p className="records-row-meta">
-                          {meta.label} · Hum {item.humidity ?? "-"}% · Wind {item.windSpeed ?? "-"} km/h
+                          {weatherName(meta.label, isChinese)} · {t("Hum", "濕度")} {item.humidity ?? "-"}% · {t("Wind", "風速")} {item.windSpeed ?? "-"} km/h
                         </p>
                       </div>
 
@@ -442,14 +455,17 @@ export default function RecordsPage() {
                 <div className="app-notice-content">
                   <Route size={22} className="app-notice-icon" />
                   <p className="app-notice-text">
-                    Calculate Route gets the road distance and duration, then estimates exposure load from PM2.5 × travel time × transport exposure.
+                    {t(
+                      "Calculate Route gets the road distance and duration, then estimates exposure load from PM2.5 × travel time × transport exposure.",
+                      "計算路線會取得道路距離與時間，並用 PM2.5 × 旅行時間 × 交通暴露係數估算暴露負荷。"
+                    )}
                   </p>
                 </div>
               </div>
 
               <div className="records-form-grid">
                 <div className="records2-card">
-                  <p className="records2-label">Origin</p>
+                  <p className="records2-label">{t("Origin", "起點")}</p>
                   <select
                     value={startCity}
                     onChange={(e) => {
@@ -459,13 +475,13 @@ export default function RecordsPage() {
                     className="records2-select"
                   >
                     {Object.keys(CITY_COORDS).map((item) => (
-                      <option key={item}>{item}</option>
+                      <option key={item} value={item}>{cityName(item, isChinese)}</option>
                     ))}
                   </select>
                 </div>
 
                 <div className="records2-card">
-                  <p className="records2-label">Destination</p>
+                  <p className="records2-label">{t("Destination", "目的地")}</p>
                   <select
                     value={endCity}
                     onChange={(e) => {
@@ -475,7 +491,7 @@ export default function RecordsPage() {
                     className="records2-select"
                   >
                     {Object.keys(CITY_COORDS).map((item) => (
-                      <option key={item}>{item}</option>
+                      <option key={item} value={item}>{cityName(item, isChinese)}</option>
                     ))}
                   </select>
                 </div>
@@ -511,14 +527,14 @@ export default function RecordsPage() {
                   disabled={routeLoading}
                   className="records-primary-button"
                 >
-                  {routeLoading ? "CALCULATING" : "CALCULATE"}
+                  {routeLoading ? t("CALCULATING", "計算中") : t("CALCULATE", "計算")}
                 </button>
               </div>
 
               <div className="records2-card records-route-card">
                 <div className="records-route-header">
                   <div>
-                    <p className="records2-label">Estimated Route</p>
+                    <p className="records2-label">{t("Estimated Route", "預估路線")}</p>
                     <p className="records2-value">
                       {displayedDistance.toFixed(1)}
                       <span className="records2-unit">KM</span>
@@ -530,15 +546,15 @@ export default function RecordsPage() {
 
                 <div className="records-metric-grid">
                   <div className="records2-soft">
-                    <p className="records2-label">Time</p>
+                    <p className="records2-label">{t("Time", "時間")}</p>
                     <p className="records2-value records2-value-sm">
                       {Math.round(displayedDuration)}
-                      <span className="records2-unit">min</span>
+                      <span className="records2-unit">{t("min", "分鐘")}</span>
                     </p>
                   </div>
 
                   <div className="records2-soft">
-                    <p className="records2-label">Avg PM2.5</p>
+                    <p className="records2-label">{t("Avg PM2.5", "平均 PM2.5")}</p>
                     <p className="records2-value records2-value-sm">
                       {avgRoutePm25}
                       <span className="records2-unit">µg/m³</span>
@@ -546,13 +562,13 @@ export default function RecordsPage() {
                   </div>
 
                   <div className="records2-soft records-metric-span">
-                    <p className="records2-label">Exposure Load</p>
+                    <p className="records2-label">{t("Exposure Load", "暴露負荷")}</p>
                     <p
                       className="records2-value records2-value-md"
                       style={{ "--value-color": pmColor(avgRoutePm25) }}
                     >
                       {displayedLoad}
-                      <span className="records2-unit">score</span>
+                      <span className="records2-unit">{t("score", "分")}</span>
                     </p>
                   </div>
                 </div>
@@ -567,7 +583,10 @@ export default function RecordsPage() {
               </div>
 
               <p className="records-map-note">
-                Blue marker = origin. Red marker = destination. Cyan line = calculated route.
+                {t(
+                  "Blue marker = origin. Red marker = destination. Cyan line = calculated route.",
+                  "藍色標記代表起點，紅色標記代表目的地，青色線條代表計算路線。"
+                )}
               </p>
             </>
           )}
@@ -578,7 +597,7 @@ export default function RecordsPage() {
                 <div className="app-notice-content">
                   <Sparkles size={22} className="app-notice-icon" />
                   <p className="app-notice-text">
-                    Trend: {drift > 0 ? "PM2.5 may increase tomorrow." : "Stable or lower PM2.5 expected tomorrow."}
+                    {t("Trend", "趨勢")}：{drift > 0 ? t("PM2.5 may increase tomorrow.", "明天 PM2.5 可能上升。") : t("Stable or lower PM2.5 expected tomorrow.", "明天 PM2.5 預期持平或下降。")}
                   </p>
                 </div>
               </div>
@@ -587,9 +606,9 @@ export default function RecordsPage() {
                 <div className="forecast-summary-card">
                   <div className="forecast-summary-top">
                     <div>
-                      <p className="forecast-label">City Prediction</p>
+                      <p className="forecast-label">{t("City Prediction", "城市預測")}</p>
                       <p className="forecast-city-name">
-                        {city}
+                        {cityName(city, isChinese)}
                       </p>
                     </div>
 
@@ -610,20 +629,20 @@ export default function RecordsPage() {
                           "--risk-color": pmColor(selected?.pm25 || 0),
                         }}
                       >
-                        {riskLabel(selected?.pm25 || 0)}
+                        {riskName(riskLabel(selected?.pm25 || 0), isChinese)}
                       </span>
                     </div>
 
                     <div className="forecast-score-stack">
                       <div className="forecast-soft-card">
-                        <p className="forecast-label">Actual Now</p>
+                        <p className="forecast-label">{t("Actual Now", "目前實測")}</p>
                         <p className="forecast-value-sm">
                           {Math.round(Math.min(100, ((selected?.pm25 || 0) / 75) * 100))}%
                         </p>
                       </div>
 
                       <div className="forecast-soft-card">
-                        <p className="forecast-label">Tomorrow</p>
+                        <p className="forecast-label">{t("Tomorrow", "明天")}</p>
                         <p className="forecast-value-sm">
                           {Math.round(Math.min(100, ((tomorrow.pm25 || 0) / 75) * 100))}%
                         </p>
@@ -634,12 +653,12 @@ export default function RecordsPage() {
               </div>
 
               <div className="forecast-section">
-                <h2 className="forecast-section-title">Live Metrics</h2>
+                <h2 className="forecast-section-title">{t("Live Metrics", "即時指標")}</h2>
 
                 <div className="forecast-metrics-grid">
                   <div className="forecast-metric-card">
                     <p className="forecast-metric-title">PM2.5</p>
-                    <p className="forecast-metric-sub">Fine particles</p>
+                    <p className="forecast-metric-sub">{t("Fine particles", "細懸浮微粒")}</p>
 
                     <div className="forecast-metric-row">
                       <p
@@ -654,7 +673,7 @@ export default function RecordsPage() {
 
                   <div className="forecast-metric-card">
                     <p className="forecast-metric-title">PM10</p>
-                    <p className="forecast-metric-sub">Coarse particles</p>
+                    <p className="forecast-metric-sub">{t("Coarse particles", "粗懸浮微粒")}</p>
 
                     <div className="forecast-metric-row">
                       <p className="forecast-metric-value forecast-metric-warn">
@@ -666,7 +685,7 @@ export default function RecordsPage() {
 
                   <div className="forecast-metric-card">
                     <p className="forecast-metric-title">CO</p>
-                    <p className="forecast-metric-sub">Carbon monoxide</p>
+                    <p className="forecast-metric-sub">{t("Carbon monoxide", "一氧化碳")}</p>
 
                     <div className="forecast-metric-row">
                       <p className="forecast-metric-value forecast-metric-good">
@@ -679,7 +698,7 @@ export default function RecordsPage() {
               </div>
 
               <div className="forecast-section">
-                <h2 className="forecast-section-title">Future Scope</h2>
+                <h2 className="forecast-section-title">{t("Future Scope", "未來範圍")}</h2>
 
                 <div className="forecast-future-grid">
                   <div className="forecast-future-cell">
@@ -708,19 +727,19 @@ export default function RecordsPage() {
                     >
                       {drift}
                     </p>
-                    <p className="forecast-future-label">Drift</p>
+                    <p className="forecast-future-label">{t("Drift", "變化")}</p>
                   </div>
                 </div>
               </div>
 
               <div className="forecast-section">
-                <h2 className="forecast-section-title">7-Day Outlook</h2>
+                <h2 className="forecast-section-title">{t("7-Day Outlook", "7 日展望")}</h2>
 
                 <div className="forecast-week-card">
                   <div className="forecast-week-row">
                     {dailyPrediction.map((day) => (
                       <div key={day.date}>
-                        <p className="forecast-week-day">{day.day}</p>
+                        <p className="forecast-week-day">{forecastDayLabel(day)}</p>
                         <Cloud size={21} className="forecast-icon-accent" />
                         <p className="forecast-week-value">{day.pm25}</p>
                       </div>
@@ -740,7 +759,7 @@ export default function RecordsPage() {
                   </div>
 
                   <p className="forecast-updated-at">
-                    Last predicted: {new Date().toLocaleString()}
+                    {t("Last predicted", "最後預測")}：{new Date().toLocaleString(isChinese ? "zh-TW" : "en-US")}
                   </p>
                 </div>
               </div>

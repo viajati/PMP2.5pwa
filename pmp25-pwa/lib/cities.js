@@ -1,4 +1,6 @@
 
+import { citySearchText } from "@/lib/i18n";
+
 export const CITY_COORDS = {
   "Taipei City": { latitude: 25.033, longitude: 121.5654 },
   "New Taipei City": { latitude: 25.011, longitude: 121.4617 },
@@ -59,9 +61,12 @@ export const REGIONS = {
 
 export const REGION_NAMES = ["ALL", "NORTH", "WEST", "SOUTH", "EAST"];
 
-export function getFilteredCities(search, selectedRegion) {
+export function getFilteredCities(search, selectedRegion, chinese = false) {
+  const cleanSearch = search.trim().toLowerCase();
+
   return Object.keys(CITY_COORDS).filter((city) => {
-    const matchesSearch = city.toLowerCase().includes(search.toLowerCase());
+    const searchTarget = chinese ? citySearchText(city) : city.toLowerCase();
+    const matchesSearch = searchTarget.includes(cleanSearch);
     const matchesRegion =
       selectedRegion === "ALL" || REGIONS[selectedRegion]?.includes(city);
 

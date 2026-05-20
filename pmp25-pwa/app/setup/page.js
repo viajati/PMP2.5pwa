@@ -112,7 +112,7 @@ function SettingRow({
 
 
 export default function SetupPage() {
-  const { prefs: globalPrefs, updatePrefs: updateGlobalPrefs } = useAppPreferences();
+  const { prefs: globalPrefs, updatePrefs: updateGlobalPrefs, t } = useAppPreferences();
   const fileRef = useRef(null);
   const [prefs, setPrefs] = useState(DEFAULT_PREFS);
   const [draft, setDraft] = useState(DEFAULT_PREFS);
@@ -155,7 +155,7 @@ export default function SetupPage() {
       email: cleanEmail,
     });
 
-    setStatus("Profile name and Gmail/email saved.");
+    setStatus(t("Profile name and Gmail/email saved.", "姓名與 Gmail / Email 已儲存。"));
   }
 
   function uploadAvatar(event) {
@@ -166,7 +166,7 @@ export default function SetupPage() {
 
     reader.onload = () => {
       updatePrefs({ avatar: reader.result });
-      setStatus("Profile photo updated.");
+      setStatus(t("Profile photo updated.", "個人照片已更新。"));
     };
 
     reader.readAsDataURL(file);
@@ -178,37 +178,37 @@ export default function SetupPage() {
 
       if (permission !== "granted") {
         updatePrefs({ notifications: false });
-        setStatus("Notification permission was not granted.");
+        setStatus(t("Notification permission was not granted.", "未取得通知權限。"));
         return;
       }
     }
 
     updatePrefs({ notifications: value });
-    setStatus(value ? "Pollution alerts enabled." : "Pollution alerts disabled.");
+    setStatus(value ? t("Pollution alerts enabled.", "污染提醒已啟用。") : t("Pollution alerts disabled.", "污染提醒已關閉。"));
   }
 
   async function sendTestAlert() {
     if (typeof window === "undefined" || !("Notification" in window)) {
-      setStatus("Browser notifications are not supported.");
+      setStatus(t("Browser notifications are not supported.", "此瀏覽器不支援通知。"));
       return;
     }
 
     const permission = await Notification.requestPermission();
 
     if (permission !== "granted") {
-      setStatus("Please allow notifications first.");
+      setStatus(t("Please allow notifications first.", "請先允許通知權限。"));
       return;
     }
 
-    new Notification("🧪 Test Notification", {
-      body: "If you see this, notifications are working!",
+    new Notification(t("Test Notification", "測試通知"), {
+      body: t("If you see this, notifications are working!", "如果你看到這則訊息，代表通知功能正常。"),
     });
 
-    setStatus("Test notification sent.");
+    setStatus(t("Test notification sent.", "測試通知已送出。"));
   }
 
   function clearHistory() {
-    const ok = window.confirm("Clear local route and history cache?");
+    const ok = window.confirm(t("Clear local route and history cache?", "清除本機路線與歷史快取？"));
     if (!ok) return;
 
     Object.keys(localStorage).forEach((key) => {
@@ -225,13 +225,13 @@ export default function SetupPage() {
     savePrefs(DEFAULT_PREFS);
     setPrefs(DEFAULT_PREFS);
     setDraft(DEFAULT_PREFS);
-    setStatus("History cache cleared.");
+    setStatus(t("History cache cleared.", "歷史快取已清除。"));
   }
 
   function logout() {
-    const ok = window.confirm("Logout this local session?");
+    const ok = window.confirm(t("Logout this local session?", "登出這個本機工作階段？"));
     if (!ok) return;
-    setStatus("Logged out locally. No server account is connected.");
+    setStatus(t("Logged out locally. No server account is connected.", "已在本機登出，目前未連接伺服器帳號。"));
   }
 
   const isChinese = globalPrefs.chinese;
@@ -256,10 +256,10 @@ export default function SetupPage() {
                 const loaded = loadPrefs();
                 setPrefs(loaded);
                 setDraft(loaded);
-                setStatus("Settings reloaded.");
+                setStatus(t("Settings reloaded.", "設定已重新載入。"));
               }}
               className="theme-icon-button"
-              title="Reload settings"
+              title={isChinese ? "重新載入設定" : "Reload settings"}
             >
               <RefreshCw size={22} strokeWidth={3} />
             </button>
@@ -275,7 +275,7 @@ export default function SetupPage() {
                 {prefs.avatar ? (
                   <img
                     src={prefs.avatar}
-                    alt="Profile avatar"
+                    alt={t("Profile avatar", "個人頭像")}
                     className="h-full w-full object-cover"
                   />
                 ) : (
@@ -297,7 +297,7 @@ export default function SetupPage() {
 
               <div className="min-w-0 flex-1">
                 <p className="profile-kicker">
-                  Profile Identity
+                  {isChinese ? "個人識別" : "Profile Identity"}
                 </p>
                 <p className="profile-name">
                   {prefs.name}
@@ -311,25 +311,25 @@ export default function SetupPage() {
             <div className="settings-form-stack">
               <div>
                 <p className="field-label">
-                  Username
+                  {isChinese ? "使用者名稱" : "Username"}
                 </p>
                 <input
                   value={draft.name}
                   onChange={(e) => updateDraft({ name: e.target.value })}
                   className="theme-input"
-                  placeholder="Your username"
+                  placeholder={isChinese ? "你的使用者名稱" : "Your username"}
                 />
               </div>
 
               <div>
                 <p className="field-label">
-                  Gmail / Email
+                  {isChinese ? "Gmail / Email" : "Gmail / Email"}
                 </p>
                 <input
                   value={draft.email}
                   onChange={(e) => updateDraft({ email: e.target.value })}
                   className="theme-input"
-                  placeholder="your.email@gmail.com"
+                  placeholder={isChinese ? "your.email@gmail.com" : "your.email@gmail.com"}
                 />
               </div>
 
@@ -339,7 +339,7 @@ export default function SetupPage() {
                 className="app-primary-button w-full gap-2 px-4"
               >
                 <Save size={16} strokeWidth={3} />
-                Save Profile
+                {isChinese ? "儲存個人檔案" : "Save Profile"}
               </button>
             </div>
           </div>
@@ -364,7 +364,7 @@ export default function SetupPage() {
             <SettingRow
               icon={Languages}
               title={isChinese ? "繁體中文介面" : "Chinese Interface"}
-              subtitle={isChinese ? "切換為英文界面" : "Switch to Traditional Chinese"}
+              subtitle={isChinese ? "關閉後切換回英文介面" : "Switch to Traditional Chinese"}
               right={
                 <ToggleSwitch
                   checked={prefs.chinese}
@@ -442,7 +442,7 @@ export default function SetupPage() {
               BLUE SKY TELEMETRY v2.4.0
             </p>
             <p className="setup-footer-sub">
-              Designed for moenv.gov.tw • Taiwan
+              {isChinese ? "為 moenv.gov.tw 與台灣空氣資料設計" : "Designed for moenv.gov.tw • Taiwan"}
             </p>
           </div>
         </section>

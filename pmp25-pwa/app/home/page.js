@@ -11,12 +11,14 @@ import {
   X,
 } from "lucide-react";
 import OriginalBottomNav from "@/components/OriginalBottomNav";
+import { useAppPreferences } from "@/components/AppPreferencesProvider";
 import {
   CITY_COORDS,
   REGION_NAMES,
   getFilteredCities,
   getNearestCity,
 } from "@/lib/cities";
+import { cityName, regionName } from "@/lib/i18n";
 import {
   appendPoint,
   calculateDistanceKm,
@@ -31,6 +33,8 @@ const TaiwanMap = dynamic(() => import("@/components/TaiwanMap"), {
 });
 
 export default function HomePage() {
+  const { prefs, t } = useAppPreferences();
+  const isChinese = prefs.chinese;
   const [location, setLocation] = useState({
     latitude: 23.5,
     longitude: 121.0,
@@ -53,8 +57,8 @@ export default function HomePage() {
   const [recenterTarget, setRecenterTarget] = useState(null);
 
   const filteredCities = useMemo(() => {
-    return getFilteredCities(search, selectedRegion);
-  }, [search, selectedRegion]);
+    return getFilteredCities(search, selectedRegion, isChinese);
+  }, [search, selectedRegion, isChinese]);
 
   useEffect(() => {
     function handleKeyDown(event) {
@@ -390,7 +394,7 @@ export default function HomePage() {
                 setIsSearching(true);
               }}
               onFocus={() => setIsSearching(true)}
-              placeholder="Search city..."
+              placeholder={t("Search city...", "搜尋城市...")}
               className="home-search-input"
             />
 
@@ -405,7 +409,7 @@ export default function HomePage() {
         {isSearching && (
           <button
             type="button"
-            aria-label="Close search"
+            aria-label={t("Close search", "關閉搜尋")}
             onClick={closeSearch}
             className="home-search-dismiss"
           />
@@ -424,7 +428,7 @@ export default function HomePage() {
                       selectedRegion === region ? "region-filter-button-active" : "",
                     ].join(" ")}
                   >
-                    {region}
+                    {regionName(region, isChinese)}
                   </button>
                 ))}
               </div>
@@ -446,7 +450,7 @@ export default function HomePage() {
                   className="city-result-button"
                 >
                   <MapPin size={18} className="city-result-icon" />
-                  <span className="city-result-name">{city}</span>
+                  <span className="city-result-name">{cityName(city, isChinese)}</span>
                 </button>
               ))}
             </div>
@@ -455,13 +459,15 @@ export default function HomePage() {
 
         {teleopMode && !isSearching && (
           <div className="simulation-help-card">
-            <div className="simulation-pill">Simulation Mode</div>
+            <div className="simulation-pill">{t("Simulation Mode", "模擬模式")}</div>
             <p className="simulation-title">
-              Drag the green marker to simulate movement.
+              {t("Drag the green marker to simulate movement.", "拖曳綠色標記來模擬移動。")}
             </p>
             <p className="simulation-copy">
-              Each marker move adds a route segment. The app estimates exposure
-              load across the whole simulated route, not only the final city.
+              {t(
+                "Each marker move adds a route segment. The app estimates exposure load across the whole simulated route, not only the final city.",
+                "每次移動標記都會新增一段路線，系統會估算整段模擬路線的暴露負荷，而不只看最後城市。"
+              )}
             </p>
           </div>
         )}
@@ -469,7 +475,7 @@ export default function HomePage() {
         <div className="map-control-stack">
           <button
             onClick={toggleTeleop}
-            title={teleopMode ? "Exit simulation mode" : "Start simulation mode"}
+            title={teleopMode ? t("Exit simulation mode", "結束模擬模式") : t("Start simulation mode", "開始模擬模式")}
             className={[
               "floating-control",
               teleopMode ? "floating-control-active" : "",
@@ -480,7 +486,7 @@ export default function HomePage() {
 
           <button
             onClick={recenter}
-            title="Recenter map"
+            title={t("Recenter map", "重新置中地圖")}
             className="floating-control"
           >
             <LocateFixed size={24} strokeWidth={3} />
@@ -490,20 +496,20 @@ export default function HomePage() {
         <div className="home-bottom-sheet">
           <div className="home-bottom-grid">
             <div className="home-bottom-cell">
-              <p className="home-bottom-label">Current City</p>
-              <p className="home-bottom-value">{currentCity}</p>
+              <p className="home-bottom-label">{t("Current City", "目前城市")}</p>
+              <p className="home-bottom-value">{cityName(currentCity, isChinese)}</p>
               <p className="home-bottom-sub">
                 PM2.5 {routeLoad?.currentCityPm25 ?? 0} µg/m³
               </p>
             </div>
 
             <div className="home-bottom-cell">
-              <p className="home-bottom-label">1h City Load</p>
+              <p className="home-bottom-label">{t("1h City Load", "1 小時城市負荷")}</p>
               <p className="home-bottom-value-strong">
                 {routeLoadLoading ? "..." : routeLoad?.currentCityExposure ?? 0}
-                <span className="home-bottom-unit">score</span>
+                <span className="home-bottom-unit">{t("score", "分")}</span>
               </p>
-              <p className="home-bottom-sub">local estimate</p>
+              <p className="home-bottom-sub">{t("local estimate", "本地估算")}</p>
             </div>
           </div>
 
@@ -511,7 +517,7 @@ export default function HomePage() {
 
           <div className="home-bottom-grid">
             <div className="home-bottom-cell">
-              <p className="home-bottom-label">Distance</p>
+              <p className="home-bottom-label">{t("Distance", "距離")}</p>
               <p className="home-bottom-value-strong">
                 {distance.toFixed(2)}
                 <span className="home-bottom-unit">KM</span>
@@ -519,27 +525,27 @@ export default function HomePage() {
             </div>
 
             <div className="home-bottom-cell">
-              <p className="home-bottom-label">Total Route Load</p>
+              <p className="home-bottom-label">{t("Total Route Load", "總路線負荷")}</p>
               <p className="home-bottom-value-strong">
                 {routeLoadLoading ? "..." : routeLoad?.exposureLoad ?? 0}
-                <span className="home-bottom-unit">score</span>
+                <span className="home-bottom-unit">{t("score", "分")}</span>
               </p>
             </div>
           </div>
 
           <div className="home-bottom-footer">
             <p className="home-bottom-note">
-              Avg PM2.5 {routeLoad?.avgPm25 ?? 0} · {routeLoad?.routeMinutes ?? 0} min · {routeLoad?.segmentCount ?? 0} segments
+              {t("Avg PM2.5", "平均 PM2.5")} {routeLoad?.avgPm25 ?? 0} · {routeLoad?.routeMinutes ?? 0} {t("min", "分鐘")} · {routeLoad?.segmentCount ?? 0} {t("segments", "路段")}
             </p>
 
             <button
               type="button"
               onClick={resetTodayRoute}
-              title="Reset today's route"
+              title={t("Reset today's route", "重設今日路線")}
               className="home-bottom-reset"
             >
               <RotateCcw size={11} strokeWidth={3} />
-              Reset
+              {t("Reset", "重設")}
             </button>
           </div>
         </div>

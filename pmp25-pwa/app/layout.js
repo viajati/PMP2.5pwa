@@ -24,11 +24,15 @@ const themeInitScript = `
       const prefs = raw ? JSON.parse(raw) : {};
       const darkMode = prefs.darkMode !== false;
       const theme = darkMode ? "dark" : "light";
+      const lang = prefs.chinese ? "zh" : "en";
 
       document.documentElement.dataset.theme = theme;
+      document.documentElement.dataset.lang = lang;
+      document.documentElement.lang = prefs.chinese ? "zh-Hant" : "en";
       document.documentElement.style.colorScheme = theme;
     } catch {
       document.documentElement.dataset.theme = "dark";
+      document.documentElement.dataset.lang = "en";
       document.documentElement.style.colorScheme = "dark";
     }
   })();

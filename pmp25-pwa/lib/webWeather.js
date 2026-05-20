@@ -1,3 +1,5 @@
+import { cityName } from "@/lib/i18n";
+
 export function weatherCodeToType(code, windSpeed = 0) {
   if (windSpeed >= 28) return "windy";
 
@@ -14,17 +16,30 @@ export function weatherCodeToType(code, windSpeed = 0) {
     return "raining";
   }
 
-  if ([1, 2, 3, 45, 48].includes(code)) return "cloudy";
+  if ([1, 2].includes(code)) return "partly";
+  if ([3, 45, 48].includes(code)) return "cloudy";
 
   return "sunny";
 }
 
-export function weatherText(type, city) {
-  if (type === "raining") return `It's raining in ${city}.`;
-  if (type === "cloudy") return `The sky is cloudy in ${city}.`;
-  if (type === "windy") return `It's quite windy in ${city}.`;
-  if (type === "storm") return `Thunderstorms in ${city}.`;
-  return `It's beautifully sunny in ${city}.`;
+export function weatherText(type, city, chinese = false) {
+  const displayCity = cityName(city, chinese);
+
+  if (chinese) {
+    if (type === "raining") return `${displayCity}正在下雨。`;
+    if (type === "partly") return `${displayCity}晴時多雲。`;
+    if (type === "cloudy") return `${displayCity}天空多雲。`;
+    if (type === "windy") return `${displayCity}風勢較強。`;
+    if (type === "storm") return `${displayCity}有雷雨。`;
+    return `${displayCity}天氣晴朗。`;
+  }
+
+  if (type === "raining") return `It's raining in ${displayCity}.`;
+  if (type === "partly") return `It's partly cloudy in ${displayCity}.`;
+  if (type === "cloudy") return `The sky is cloudy in ${displayCity}.`;
+  if (type === "windy") return `It's quite windy in ${displayCity}.`;
+  if (type === "storm") return `Thunderstorms in ${displayCity}.`;
+  return `It's beautifully sunny in ${displayCity}.`;
 }
 
 export async function fetchWeatherByCoords(latitude, longitude) {
