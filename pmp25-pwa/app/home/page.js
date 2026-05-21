@@ -25,7 +25,7 @@ import {
   getFilteredCities,
   getNearestCity,
 } from "@/lib/cities";
-import { cityName, regionName, transportName } from "@/lib/i18n";
+import { cityName, regionName, routeSourceName, transportName } from "@/lib/i18n";
 import {
   appendPoint,
   appendSimulationPoint,
@@ -92,6 +92,25 @@ function compactRoutePoints(route) {
   }
 
   return points;
+}
+
+function cityPathFromPoints(route = []) {
+  return route.reduce((path, point) => {
+    if (!Number.isFinite(point?.latitude) || !Number.isFinite(point?.longitude)) {
+      return path;
+    }
+
+    const city = point.city || getNearestCity(point.latitude, point.longitude);
+    if (city && city !== path[path.length - 1]) path.push(city);
+
+    return path;
+  }, []);
+}
+
+function visibleCityPath(path = [], expanded = false) {
+  if (expanded || path.length <= 5) return path;
+
+  return [...path.slice(0, 3), "__more__", path[path.length - 1]];
 }
 
 function fallbackRouteSegment(start, end, mode) {
@@ -174,6 +193,7 @@ export default function HomePage() {
   const [simulationHelpOpen, setSimulationHelpOpen] = useState(false);
   const [calculationOpen, setCalculationOpen] = useState(false);
   const [homeInfoOpen, setHomeInfoOpen] = useState(false);
+  const [routePathOpen, setRoutePathOpen] = useState(false);
 
   const [currentCity, setCurrentCity] = useState("Taiwan");
   const [routeLoad, setRouteLoad] = useState(null);
@@ -507,8 +527,8 @@ export default function HomePage() {
           routeKind: teleopMode ? "simulation" : "gps",
           calculation: {
             distance: roadRoute
-              ? "OSRM road route distance between sampled points"
-              : "GPS sample-to-sample distance",
+              ? "road-route distance between GPS points"
+              : "GPS point-to-point distance",
             duration: roadRoute
               ? `${transportName(routeMode, false)} route duration`
               : stats.durationSource,
@@ -544,10 +564,13 @@ export default function HomePage() {
           exposureLoad: stats.exposureLoad,
           routeDistanceKm: stats.km,
           segmentCount: stats.segments,
+          sampleCount: stats.hits,
+          cityPath: stats.cityPath,
           mode: routeMode,
           routeSource: teleopMode
             ? roadRoute?.source || "Simulation"
             : roadRoute?.source || "GPS samples",
+          routeKind: teleopMode ? "simulation" : "gps",
           multiplier: exposureMultiplierForMode(routeMode),
         });
       } catch {
@@ -682,10 +705,16 @@ export default function HomePage() {
 
   const displayedDistance = routeLoad?.routeDistanceKm ?? activeDistance;
   const routeSourceLabel = roadRoutingLoading
-    ? t("routing road path", "正在規劃道路路線")
+    ? "routing road path"
     : teleopMode
-      ? routeLoad?.routeSource || t("Simulation", "模擬")
-      : routeLoad?.routeSource || t("GPS samples", "GPS 樣本");
+      ? routeLoad?.routeSource || "Simulation"
+      : routeLoad?.routeSource || "GPS samples";
+  const routeSourceDisplay = routeSourceName(routeSourceLabel, isChinese);
+  const routeCityPath = routeLoad?.cityPath?.length
+    ? routeLoad.cityPath
+    : cityPathFromPoints(activePath);
+  const routeCityPathVisible = visibleCityPath(routeCityPath, routePathOpen);
+  const routeCityPathHiddenCount = Math.max(0, routeCityPath.length - 4);
   const modeFactor = routeLoad?.multiplier ?? exposureMultiplierForMode(routeMode);
   const routeFormula = t(
     `Load is summed by time: each road segment uses PM2.5 × segment hours × ${transportName(routeMode, false)} exposure rate (${modeFactor}x per travel hour). Avg PM2.5 (${routeLoad?.avgPm25 ?? 0}) is weighted by segment time, not just city count.`,
@@ -811,8 +840,8 @@ export default function HomePage() {
                 </p>
                 <p className="simulation-copy">
                   {t(
-                    "Each marker move adds a sampled point. Home routes between points by road when available, then scores exposure by segment time.",
-                    "每次移動標記都會新增取樣點。首頁會盡量用道路連接取樣點，再依路段時間計算暴露。"
+                    "Each marker move adds a simulation point. Home routes between points by road when available, then scores exposure by segment time.",
+                    "每次移動標記都會新增模擬點。首頁會盡量用道路連接各點，再依路段時間計算暴露。"
                   )}
                 </p>
               </>
@@ -919,6 +948,56 @@ export default function HomePage() {
 
               <div className="home-bottom-divider" />
 
+              <div className="home-route-chain">
+                <div className="home-route-chain-head">
+                  <p className="home-bottom-label">
+                    {teleopMode ? t("Simulation Route", "模擬路線") : t("Phone GPS Route", "手機 GPS 路線")}
+                  </p>
+
+                  {routeCityPath.length > 5 && (
+                    <button
+                      type="button"
+                      className="home-route-chain-toggle"
+                      onClick={() => setRoutePathOpen((value) => !value)}
+                    >
+                      {routePathOpen
+                        ? t("Collapse", "收合")
+                        : `${t("Show all", "全部")} +${routeCityPathHiddenCount}`}
+                    </button>
+                  )}
+                </div>
+
+                {routeCityPath.length > 0 ? (
+                  <div className="home-route-chain-list">
+                    {routeCityPathVisible.map((city, index) => (
+                      <span
+                        key={`${city}-${index}`}
+                        className="home-route-chain-item"
+                      >
+                        {index > 0 && <span className="home-route-chain-arrow">→</span>}
+                        {city === "__more__" ? (
+                          <span className="home-route-chain-more">
+                            +{routeCityPathHiddenCount}
+                          </span>
+                        ) : (
+                          <span className="home-route-chain-city">
+                            {cityName(city, isChinese)}
+                          </span>
+                        )}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="home-route-chain-empty">
+                    {teleopMode
+                      ? t("Drag or search cities to build a simulation route.", "拖曳或搜尋城市來建立模擬路線。")
+                      : t("Move with your phone to build the real GPS route.", "帶著手機移動後會建立真實 GPS 路線。")}
+                  </p>
+                )}
+              </div>
+
+              <div className="home-bottom-divider" />
+
               <div className="home-bottom-grid">
                 <div className="home-bottom-cell">
                   <p className="home-bottom-label">{t("Road Distance", "道路距離")}</p>
@@ -939,7 +1018,7 @@ export default function HomePage() {
 
               <div className="home-bottom-footer">
                 <p className="home-bottom-note">
-                  {transportName(routeMode, isChinese)} · {routeSourceLabel} · {routeLoad?.routeMinutes ?? 0} {t("min", "分鐘")} · {routeLoad?.segmentCount ?? 0} {t("samples", "樣本")}
+                  {transportName(routeMode, isChinese)} · {routeSourceDisplay} · {routeLoad?.routeMinutes ?? 0} {t("min", "分鐘")} · {routeLoad?.sampleCount ?? activePath.length} {teleopMode ? t("moves", "次移動") : t("GPS points", "GPS 點")}
                 </p>
 
                 <button

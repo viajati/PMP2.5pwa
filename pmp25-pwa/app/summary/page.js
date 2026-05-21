@@ -21,6 +21,7 @@ import { routeDateId } from "@/lib/trackStorage";
 import {
   cityName,
   riskName,
+  routeSourceName,
   summaryDate,
   summaryDayName,
   transportName,
@@ -209,7 +210,7 @@ export default function SummaryPage() {
                         {summaryDayName(day, isChinese)}
                       </p>
                       <p className="summary-history-sub">
-                        {summaryDate(day, isChinese)} · {day.segments} {t("segments", "路段")} · {day.hits} {t("samples", "樣本")}
+                        {summaryDate(day, isChinese)} · {day.segments} {t("segments", "路段")} · {day.hits} {t("GPS points", "GPS 點")}
                       </p>
                     </div>
 
@@ -283,32 +284,32 @@ export default function SummaryPage() {
 
                       <div className="mt-3 flex items-center justify-between">
                         <p className="summary-inline-meta">
-                          {day.hits} {t("samples", "樣本")} · {day.minutes} {t("min", "分鐘")}
+                          {day.hits} {t("GPS points", "GPS 點")} · {day.minutes} {t("min", "分鐘")}
                         </p>
 
                         <span className="summary-source-chip">
                           {day.routeSource
-                            ? `${day.routeSource} · ${transportName(day.routeMode, isChinese)}`
+                            ? `${routeSourceName(day.routeSource, isChinese)} · ${transportName(day.routeMode, isChinese)}`
                             : day.isPersonal
-                              ? t("personal route", "個人路線")
+                              ? t("phone GPS", "手機 GPS")
                               : t("no data", "無資料")}
                         </span>
                       </div>
 
                       <p className="summary-route-path">
                         {day.cityPath?.length > 0
-                          ? `${t("Sampled path", "取樣路徑")}：${day.cityPath.map((city) => cityName(city, isChinese)).join(" → ")}`
-                          : t("No route samples recorded for this day.", "這一天沒有記錄路線樣本。")}
+                          ? `${t("GPS route", "GPS 路線")}：${day.cityPath.map((city) => cityName(city, isChinese)).join(" → ")}`
+                          : t("No real GPS route recorded for this day.", "這一天沒有真實 GPS 路線紀錄。")}
                       </p>
 
                       <p className="summary-inline-meta mt-2">
                         {day.durationSource === "timestamp"
-                          ? t("Duration comes from GPS sample timestamps.", "時間由 GPS 樣本時間戳計算。")
+                          ? t("Duration comes from phone GPS timestamps.", "時間由手機 GPS 時間戳計算。")
                           : day.durationSource === "road"
-                            ? t("Distance and duration use the routed road path saved from Home.", "距離與時間使用首頁儲存的道路路線。")
+                            ? t("Distance and duration use the road route calculated from real GPS points.", "距離與時間使用真實 GPS 點計算出的道路路線。")
                           : day.isPersonal
                             ? t("Duration is estimated from distance because timestamp gaps were unavailable.", "因缺少可用時間戳，時間由距離估算。")
-                            : t("Start a route on Home to build this history automatically.", "在首頁開始記錄路線後，這裡會自動建立歷史。")}
+                            : t("Allow GPS on Home and move with the phone to build this history automatically.", "在首頁允許 GPS 並帶著手機移動後，這裡會自動建立歷史。")}
                       </p>
 
                       <div className="interval-box">
@@ -363,8 +364,8 @@ export default function SummaryPage() {
               <ShieldAlert className="app-notice-icon" size={22} />
               <p className="app-notice-text">
                 {t(
-                  "Summary now uses your sampled GPS route. When Home has a routed path, distance and duration come from that road route. Load is time-based: PM2.5 x route hours x transport exposure rate.",
-                  "總覽現在會使用你的 GPS 取樣路線。若首頁已取得道路路線，距離與時間會使用該道路路線。負荷以時間計算：PM2.5 × 路線小時 × 交通暴露率。"
+                  "Summary uses real phone GPS only. Home simulation stays separate, and road routing is used only to turn those GPS points into a realistic path. Load is time-based: PM2.5 x route hours x transport exposure rate.",
+                  "總覽只使用真實手機 GPS。首頁模擬會分開保存，道路規劃只用來把 GPS 點轉成較貼近實際道路的路徑。負荷以時間計算：PM2.5 × 路線小時 × 交通暴露率。"
                 )}
               </p>
             </div>

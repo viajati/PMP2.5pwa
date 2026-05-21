@@ -963,6 +963,82 @@ button:disabled {
   color: var(--app-cyan);
 }
 
+.home-route-chain {
+  border-radius: 14px;
+  background: rgba(0, 210, 255, 0.07);
+  padding: 10px;
+}
+
+.home-route-chain-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.home-route-chain-toggle {
+  flex-shrink: 0;
+  color: var(--app-cyan);
+  font-size: 9px;
+  font-weight: 950;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.home-route-chain-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.home-route-chain-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.home-route-chain-city,
+.home-route-chain-more {
+  display: inline-flex;
+  max-width: 132px;
+  align-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: var(--radius-round);
+  background: var(--control-bg);
+  padding: 6px 9px;
+  color: var(--text-main);
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.home-route-chain-city {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.home-route-chain-more {
+  color: var(--app-cyan);
+}
+
+.home-route-chain-arrow {
+  color: var(--app-cyan);
+  font-size: 11px;
+  font-weight: 950;
+}
+
+.home-route-chain-empty {
+  margin-top: 8px;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 750;
+  line-height: 1.35;
+}
+
 .home-bottom-footer {
   gap: 8px;
   margin-top: 8px;

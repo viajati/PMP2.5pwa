@@ -36,7 +36,7 @@ function getStoredRouteEntryByOffset(offset, routeMap = null) {
   const id = routeDateId(offset);
   const cloudEntry = routeMap?.[id];
   const gpsOnly = (points = []) =>
-    points.filter((point) => point?.source !== "simulation");
+    points.filter((point) => point?.source === "gps");
 
   if (cloudEntry) {
     if (Array.isArray(cloudEntry)) return { points: gpsOnly(cloudEntry), summary: null };
@@ -44,17 +44,21 @@ function getStoredRouteEntryByOffset(offset, routeMap = null) {
       return { points: [], summary: null };
     }
 
+    const points = gpsOnly(cloudEntry.points || []);
+
     return {
-      points: gpsOnly(cloudEntry.points || []),
-      summary: cloudEntry.summary || null,
+      points,
+      summary: points.length > 0 ? cloudEntry.summary || null : null,
     };
   }
 
   if (typeof window === "undefined") return { points: [], summary: null };
 
+  const localPoints = gpsOnly(loadRouteById(id));
+
   return {
-    points: gpsOnly(loadRouteById(id)),
-    summary: loadRouteSummaryById(id),
+    points: localPoints,
+    summary: localPoints.length > 0 ? loadRouteSummaryById(id) : null,
   };
 }
 

@@ -93,6 +93,16 @@ export function transportName(mode, chinese = false) {
   return TRANSPORT_ZH[mode] || mode;
 }
 
+export function routeSourceName(source, chinese = false) {
+  if (source === "OSRM") return chinese ? "道路路線" : "road route";
+  if (source === "GPS samples") return chinese ? "手機 GPS" : "phone GPS";
+  if (source === "GPS estimate") return chinese ? "GPS 估算" : "GPS estimate";
+  if (source === "Simulation") return chinese ? "模擬路線" : "simulation route";
+  if (source === "routing road path") return chinese ? "正在規劃道路路線" : "routing road path";
+
+  return source || (chinese ? "手機 GPS" : "phone GPS");
+}
+
 export function citySearchText(city) {
   return `${city} ${CITY_ZH[city] || ""}`.toLowerCase();
 }
