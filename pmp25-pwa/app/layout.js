@@ -1,5 +1,7 @@
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { AuthProvider } from "@/components/AuthProvider";
+import AuthGate from "@/components/AuthGate";
 import { AppPreferencesProvider } from "@/components/AppPreferencesProvider";
 
 const geistSans = Geist({
@@ -50,7 +52,11 @@ export default function RootLayout({ children }) {
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
       <body className="min-h-full flex flex-col">
-        <AppPreferencesProvider>{children}</AppPreferencesProvider>
+        <AuthProvider>
+          <AppPreferencesProvider>
+            <AuthGate>{children}</AuthGate>
+          </AppPreferencesProvider>
+        </AuthProvider>
       </body>
     </html>
   );

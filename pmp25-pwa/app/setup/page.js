@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Bell,
-  Camera,
   ChevronRight,
   Languages,
   LogOut,
@@ -13,16 +13,18 @@ import {
   Save,
   ShieldCheck,
   Trash2,
-  User,
 } from "lucide-react";
 import OriginalBottomNav from "@/components/OriginalBottomNav";
 import { useAppPreferences } from "@/components/AppPreferencesProvider";
+import { useAuth } from "@/components/AuthProvider";
+import AvatarPicker, { AvatarVisual } from "@/components/AvatarPicker";
+import { clearUserRoutes } from "@/lib/firebaseData";
 
 const STORAGE_KEY = "pmp25_setup_preferences";
 
 const DEFAULT_PREFS = {
-  name: "Angeline",
-  email: "angelinemarcellina63@gmail.com",
+  name: "",
+  email: "",
   avatar: "",
   darkMode: true,
   chinese: false,
@@ -112,8 +114,14 @@ function SettingRow({
 
 
 export default function SetupPage() {
+  const router = useRouter();
   const { prefs: globalPrefs, updatePrefs: updateGlobalPrefs, t } = useAppPreferences();
-  const fileRef = useRef(null);
+  const {
+    user,
+    firebaseReady,
+    logout: logoutUser,
+    updateAccountProfile,
+  } = useAuth();
   const [prefs, setPrefs] = useState(DEFAULT_PREFS);
   const [draft, setDraft] = useState(DEFAULT_PREFS);
   const [status, setStatus] = useState("");
@@ -134,6 +142,28 @@ export default function SetupPage() {
     };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    queueMicrotask(() => {
+      if (cancelled) return;
+
+      const accountName = user?.displayName?.trim() || "";
+      const identityPrefs = {
+        ...globalPrefs,
+        name: accountName || globalPrefs.name || "",
+        email: user?.email || "",
+      };
+
+      setPrefs(identityPrefs);
+      setDraft(identityPrefs);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [globalPrefs, user?.displayName, user?.email]);
+
   function updatePrefs(patch) {
     const next = { ...prefs, ...patch };
     setPrefs(next);
@@ -146,30 +176,36 @@ export default function SetupPage() {
     setDraft((current) => ({ ...current, ...patch }));
   }
 
-  function saveProfileIdentity() {
-    const cleanName = draft.name.trim() || DEFAULT_PREFS.name;
-    const cleanEmail = draft.email.trim() || DEFAULT_PREFS.email;
+  async function saveProfileIdentity() {
+    const cleanName = draft.name.trim();
 
-    updatePrefs({
-      name: cleanName,
-      email: cleanEmail,
-    });
+    try {
+      if (!cleanName) {
+        setStatus(t("Enter a username before saving.", "請先輸入使用者名稱。"));
+        return;
+      }
 
-    setStatus(t("Profile name and Gmail/email saved.", "姓名與 Gmail / Email 已儲存。"));
+      updatePrefs({
+        name: cleanName,
+      });
+
+      if (firebaseReady && user) {
+        await updateAccountProfile({ displayName: cleanName });
+      }
+
+      setStatus(firebaseReady && user
+        ? t("Profile identity saved and synced.", "個人識別已儲存並同步。")
+        : t("Profile identity saved locally.", "個人識別已儲存在本機。"));
+    } catch (error) {
+      setStatus(error.message);
+    }
   }
 
-  function uploadAvatar(event) {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-
-    reader.onload = () => {
-      updatePrefs({ avatar: reader.result });
-      setStatus(t("Profile photo updated.", "個人照片已更新。"));
-    };
-
-    reader.readAsDataURL(file);
+  function chooseAvatar(avatar) {
+    updatePrefs({ avatar });
+    setStatus(firebaseReady && user
+      ? t("Profile picture saved and synced.", "個人頭像已儲存並同步。")
+      : t("Profile picture saved locally.", "個人頭像已儲存在本機。"));
   }
 
   async function toggleNotifications(value) {
@@ -207,7 +243,7 @@ export default function SetupPage() {
     setStatus(t("Test notification sent.", "測試通知已送出。"));
   }
 
-  function clearHistory() {
+  async function clearHistory() {
     const ok = window.confirm(t("Clear local route and history cache?", "清除本機路線與歷史快取？"));
     if (!ok) return;
 
@@ -225,13 +261,32 @@ export default function SetupPage() {
     savePrefs(DEFAULT_PREFS);
     setPrefs(DEFAULT_PREFS);
     setDraft(DEFAULT_PREFS);
-    setStatus(t("History cache cleared.", "歷史快取已清除。"));
+    updateGlobalPrefs(DEFAULT_PREFS);
+
+    if (firebaseReady && user?.uid) {
+      try {
+        await clearUserRoutes(user.uid);
+      } catch (error) {
+        console.warn("Unable to clear cloud routes:", error);
+      }
+    }
+
+    setStatus(firebaseReady && user
+      ? t("Local and cloud route history cleared.", "本機與雲端路線歷史已清除。")
+      : t("History cache cleared.", "歷史快取已清除。"));
   }
 
-  function logout() {
-    const ok = window.confirm(t("Logout this local session?", "登出這個本機工作階段？"));
+  async function logout() {
+    const ok = window.confirm(t("Logout this session?", "登出這個工作階段？"));
     if (!ok) return;
-    setStatus(t("Logged out locally. No server account is connected.", "已在本機登出，目前未連接伺服器帳號。"));
+
+    if (firebaseReady && user) {
+      await logoutUser();
+      router.push("/login");
+      return;
+    }
+
+    setStatus(t("No server account is connected.", "目前未連接伺服器帳號。"));
   }
 
   const isChinese = globalPrefs.chinese;
@@ -267,46 +322,26 @@ export default function SetupPage() {
 
           <div className="settings-card mt-7">
             <div className="identity-row">
-              <button
-                type="button"
-                onClick={() => fileRef.current?.click()}
-                className="avatar-button"
-              >
-                {prefs.avatar ? (
-                  <img
-                    src={prefs.avatar}
-                    alt={t("Profile avatar", "個人頭像")}
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <User size={34} color="white" />
-                )}
-
-                <span className="avatar-edit-badge">
-                  <Camera size={12} strokeWidth={3} />
-                </span>
-              </button>
-
-              <input
-                ref={fileRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={uploadAvatar}
-              />
+              <AvatarVisual value={prefs.avatar} className="avatar-button" />
 
               <div className="min-w-0 flex-1">
                 <p className="profile-kicker">
                   {isChinese ? "個人識別" : "Profile Identity"}
                 </p>
                 <p className="profile-name">
-                  {prefs.name}
+                  {prefs.name || user?.displayName || (isChinese ? "使用者" : "User")}
                 </p>
                 <p className="profile-sub profile-email">
-                  {prefs.email}
+                  {user?.email || (isChinese ? "尚未登入" : "Not signed in")}
                 </p>
               </div>
             </div>
+
+            <AvatarPicker
+              value={prefs.avatar}
+              onChange={chooseAvatar}
+              chinese={isChinese}
+            />
 
             <div className="settings-form-stack">
               <div>
@@ -323,14 +358,11 @@ export default function SetupPage() {
 
               <div>
                 <p className="field-label">
-                  {isChinese ? "Gmail / Email" : "Gmail / Email"}
+                  {isChinese ? "帳號 Email" : "Account Email"}
                 </p>
-                <input
-                  value={draft.email}
-                  onChange={(e) => updateDraft({ email: e.target.value })}
-                  className="theme-input"
-                  placeholder={isChinese ? "your.email@gmail.com" : "your.email@gmail.com"}
-                />
+                <div className="theme-readonly-field">
+                  {user?.email || (isChinese ? "尚未登入" : "Not signed in")}
+                </div>
               </div>
 
               <button
@@ -379,6 +411,14 @@ export default function SetupPage() {
           </p>
 
           <div className="space-y-3">
+            <SettingRow
+              icon={ShieldCheck}
+              title={firebaseReady ? (user ? (isChinese ? "雲端同步已連線" : "Cloud Sync Connected") : (isChinese ? "尚未登入" : "Not Signed In")) : (isChinese ? "Firebase 尚未設定" : "Firebase Not Configured")}
+              subtitle={firebaseReady ? (user ? (isChinese ? "偏好、健康資料與路線會同步到 Firestore" : "Preferences, health profile, and routes sync to Firestore") : (isChinese ? "登入後即可同步資料" : "Sign in to sync your data")) : (isChinese ? "加入環境變數後啟用登入與 Firestore" : "Add env values to enable Auth and Firestore")}
+              href={user ? "/verify" : "/login"}
+              right={<ChevronRight size={22} className="summary-expand-icon" />}
+            />
+
             <SettingRow
               icon={Bell}
               title={isChinese ? "污染預警" : "Pollution Alerts"}

@@ -456,8 +456,8 @@ export default function RecordsPage() {
                   <Route size={22} className="app-notice-icon" />
                   <p className="app-notice-text">
                     {t(
-                      "Calculate Route gets the road distance and duration, then estimates exposure load from PM2.5 × travel time × transport exposure.",
-                      "計算路線會取得道路距離與時間，並用 PM2.5 × 旅行時間 × 交通暴露係數估算暴露負荷。"
+                      "Calculate Route gets road distance and duration, then sums exposure by time: PM2.5 × travel hours × transport exposure rate.",
+                      "計算路線會取得道路距離與時間，再依時間加總暴露：PM2.5 × 旅行小時 × 交通暴露率。"
                     )}
                   </p>
                 </div>
@@ -584,8 +584,8 @@ export default function RecordsPage() {
 
               <p className="records-map-note">
                 {t(
-                  "Blue marker = origin. Red marker = destination. Cyan line = calculated route.",
-                  "藍色標記代表起點，紅色標記代表目的地，青色線條代表計算路線。"
+                  "Blue marker = origin. Red marker = destination. Cyan line = calculated route. Avg PM2.5 is applied over travel time, then adjusted by transport exposure rate.",
+                  "藍色標記代表起點，紅色標記代表目的地，青色線條代表計算路線。平均 PM2.5 會套用到旅行時間，再依交通暴露率調整。"
                 )}
               </p>
             </>

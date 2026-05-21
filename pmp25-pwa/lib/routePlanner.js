@@ -18,16 +18,7 @@ export async function fetchRoute(start, end, mode = "car") {
 
     const route = data.routes[0];
     const distanceKm = route.distance / 1000;
-
-    let durationMin = route.duration / 60;
-
-    if (mode === "bike") {
-      durationMin = (distanceKm / 16) * 60;
-    }
-
-    if (mode === "walk") {
-      durationMin = (distanceKm / 5) * 60;
-    }
+    const durationMin = routeDurationForMode(mode, distanceKm, route.duration / 60);
 
     return {
       coords: route.geometry.coordinates.map((point) => ({
@@ -44,7 +35,26 @@ export async function fetchRoute(start, end, mode = "car") {
   }
 }
 
+export function routeSpeedKmH(mode = "car") {
+  if (mode === "walk") return 5;
+  if (mode === "bike") return 16;
+  return null;
+}
+
+export function routeDurationForMode(mode = "car", distanceKm = 0, drivingMinutes = 0) {
+  const speed = routeSpeedKmH(mode);
+  if (!speed) return drivingMinutes || distanceKm * 1.4;
+  return (distanceKm / speed) * 60;
+}
+
+export function exposureMultiplierForMode(mode = "car") {
+  if (mode === "walk") return 1.35;
+  if (mode === "bike") return 1.6;
+  return 1;
+}
+
 export function estimateExposureLoad(pm25, minutes, mode = "car") {
-  const multiplier = mode === "walk" ? 1.35 : mode === "bike" ? 1.6 : 1;
-  return Number((pm25 * (minutes / 60) * multiplier).toFixed(1));
+  return Number(
+    (pm25 * (minutes / 60) * exposureMultiplierForMode(mode)).toFixed(1)
+  );
 }

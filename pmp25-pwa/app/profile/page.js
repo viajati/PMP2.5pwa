@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   Activity,
   ArrowLeft,
-  Camera,
   CalendarDays,
   Flower,
   Heart,
@@ -14,16 +13,21 @@ import {
   ShieldCheck,
   Snowflake,
   Sparkles,
-  User,
   Wrench,
 } from "lucide-react";
 import { useAppPreferences } from "@/components/AppPreferencesProvider";
+import { useAuth } from "@/components/AuthProvider";
+import AvatarPicker, { AvatarVisual } from "@/components/AvatarPicker";
+import {
+  saveHealthProfile,
+  subscribeHealthProfile,
+} from "@/lib/firebaseData";
 
 const SETUP_KEY = "pmp25_setup_preferences";
 const PROFILE_KEY = "pmp25_health_profile";
 
 const defaultPrefs = {
-  name: "Angeline",
+  name: "",
   avatar: "",
 };
 
@@ -59,6 +63,15 @@ function loadJson(key, fallback) {
 function saveJson(key, value) {
   if (typeof window === "undefined") return;
   localStorage.setItem(key, JSON.stringify(value));
+}
+
+function cleanProfile(value = {}) {
+  return {
+    ageLevel: value.ageLevel ?? defaultProfile.ageLevel,
+    conditions: Array.isArray(value.conditions) ? value.conditions : defaultProfile.conditions,
+    activityLevel: value.activityLevel ?? defaultProfile.activityLevel,
+    fitnessLevel: value.fitnessLevel ?? defaultProfile.fitnessLevel,
+  };
 }
 
 function ageStory(level, chinese) {
@@ -169,12 +182,13 @@ function SliderBlock({
 }
 
 export default function ProfilePage() {
-  const { prefs: appPrefs, t } = useAppPreferences();
+  const { prefs: appPrefs, updatePrefs, t } = useAppPreferences();
+  const { user, firebaseReady } = useAuth();
   const isChinese = appPrefs.chinese;
-  const fileRef = useRef(null);
   const [prefs, setPrefs] = useState(defaultPrefs);
   const [profile, setProfile] = useState(defaultProfile);
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -191,6 +205,45 @@ export default function ProfilePage() {
     };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    queueMicrotask(() => {
+      if (cancelled) return;
+
+      setPrefs({
+        name: appPrefs.name || user?.displayName || "",
+        avatar: appPrefs.avatar || user?.photoURL || "",
+      });
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [appPrefs.avatar, appPrefs.name, user?.displayName, user?.photoURL]);
+
+  useEffect(() => {
+    if (!firebaseReady || !user?.uid) return undefined;
+
+    return subscribeHealthProfile(
+      user.uid,
+      (cloudProfile) => {
+        if (!cloudProfile) {
+          const localProfile = loadJson(PROFILE_KEY, defaultProfile);
+          saveHealthProfile(user.uid, localProfile).catch((error) => {
+            console.warn("Unable to seed cloud health profile:", error);
+          });
+          return;
+        }
+
+        setProfile(cleanProfile(cloudProfile));
+      },
+      (error) => {
+        console.warn("Unable to subscribe to cloud health profile:", error);
+      }
+    );
+  }, [firebaseReady, user?.uid]);
+
   function updateProfile(patch) {
     setSaved(false);
     setProfile((current) => ({ ...current, ...patch }));
@@ -205,24 +258,28 @@ export default function ProfilePage() {
     updateProfile({ conditions: next });
   }
 
-  function uploadAvatar(event) {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-
-    reader.onload = () => {
-      const nextPrefs = { ...prefs, avatar: reader.result };
-      setPrefs(nextPrefs);
-      saveJson(SETUP_KEY, nextPrefs);
-    };
-
-    reader.readAsDataURL(file);
+  function chooseAvatar(avatar) {
+    const nextPrefs = { ...prefs, avatar };
+    setPrefs(nextPrefs);
+    saveJson(SETUP_KEY, nextPrefs);
+    updatePrefs({ avatar });
+    setSaveError("");
+    setSaved(false);
   }
 
-  function saveProfile() {
+  async function saveProfile() {
     saveJson(PROFILE_KEY, profile);
-    setSaved(true);
+
+    try {
+      if (firebaseReady && user?.uid) {
+        await saveHealthProfile(user.uid, profile);
+      }
+
+      setSaveError("");
+      setSaved(true);
+    } catch (error) {
+      setSaveError(error.message);
+    }
   }
 
   return (
@@ -245,33 +302,7 @@ export default function ProfilePage() {
 
           <div className="profile-card profile-identity-card">
             <div className="identity-row">
-              <button
-                type="button"
-                onClick={() => fileRef.current?.click()}
-                className="avatar-button"
-              >
-                {prefs.avatar ? (
-                  <img
-                    src={prefs.avatar}
-                    alt={t("Profile avatar", "個人頭像")}
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <User size={34} color="white" />
-                )}
-
-                <span className="avatar-edit-badge">
-                  <Camera size={12} strokeWidth={3} />
-                </span>
-              </button>
-
-              <input
-                ref={fileRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={uploadAvatar}
-              />
+              <AvatarVisual value={prefs.avatar} className="avatar-button" />
 
               <div className="min-w-0 flex-1">
                 <p className="profile-kicker">
@@ -285,6 +316,12 @@ export default function ProfilePage() {
                 </p>
               </div>
             </div>
+
+            <AvatarPicker
+              value={prefs.avatar}
+              onChange={chooseAvatar}
+              chinese={isChinese}
+            />
           </div>
 
           <div className="story-grid">
@@ -386,7 +423,15 @@ export default function ProfilePage() {
 
           {saved && (
             <div className="status-callout text-center">
-              {t("Profile updated.", "個人檔案已更新。")}
+              {firebaseReady && user
+                ? t("Profile updated and synced.", "個人檔案已更新並同步。")
+                : t("Profile updated locally.", "個人檔案已在本機更新。")}
+            </div>
+          )}
+
+          {saveError && (
+            <div className="status-callout text-center">
+              {saveError}
             </div>
           )}
 

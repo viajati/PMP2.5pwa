@@ -1,11 +1,23 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
-import { Languages, Moon, Sun } from "lucide-react";
+import { useRouter } from "next/navigation";
+import {
+  Eye,
+  EyeOff,
+  Languages,
+  Lock,
+  Mail,
+  Moon,
+  Sun,
+  UserRound,
+} from "lucide-react";
 import { CITY_COORDS, getNearestCity } from "@/lib/cities";
 import { fetchWeatherByCoords, weatherText } from "@/lib/webWeather";
 import { useAppPreferences } from "@/components/AppPreferencesProvider";
+import { useAuth } from "@/components/AuthProvider";
+import { isFacebookLoginEnabled } from "@/lib/firebaseClient";
+import { isAppVerifiedUser } from "@/lib/authStatus";
 import { cityName as localizedCityName, localDateString } from "@/lib/i18n";
 
 function getTimeString(date) {
@@ -41,11 +53,27 @@ function weatherSceneType(type) {
 }
 
 export default function LoginPage() {
+  const router = useRouter();
   const { prefs, updatePrefs, t } = useAppPreferences();
+  const {
+    user,
+    authReady,
+    firebaseReady,
+    authError,
+    loginWithEmail,
+    registerWithEmail,
+    loginWithProvider,
+  } = useAuth();
   const isChinese = prefs.chinese;
   const [isLogin, setIsLogin] = useState(true);
   const [mounted, setMounted] = useState(false);
   const [currentTime, setCurrentTime] = useState(null);
+  const [displayName, setDisplayName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [status, setStatus] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   const [cityName, setCityName] = useState("Hsinchu City");
   const [weatherType, setWeatherType] = useState("sunny");
@@ -108,6 +136,17 @@ export default function LoginPage() {
     );
   }, []);
 
+  useEffect(() => {
+    if (!authReady || !user) return;
+
+    if (user.email && !isAppVerifiedUser(user)) {
+      router.push("/verify");
+      return;
+    }
+
+    router.push("/home");
+  }, [authReady, router, user]);
+
   const displayCityName = localizedCityName(cityName, isChinese);
   const weatherLines = splitWeatherLine(weatherText(weatherType, cityName, isChinese));
   const weatherTime =
@@ -116,8 +155,88 @@ export default function LoginPage() {
       : "day";
   const weatherSceneClass = `login-weather-scene records2-weather-${weatherSceneType(weatherType)}-${weatherTime}`;
 
-  function handleSocialLogin(provider) {
-    window.alert(t(`${provider} login will be available soon.`, `${provider} 登入即將推出。`));
+  async function handleAuthSubmit(event) {
+    event.preventDefault();
+    setStatus("");
+    setSubmitting(true);
+
+    try {
+      if (!firebaseReady) {
+        setStatus(t(
+          "Firebase is not configured yet. Add the project env values to enable login.",
+          "尚未設定 Firebase。請加入專案環境變數以啟用登入。"
+        ));
+        return;
+      }
+
+      const result = isLogin
+        ? await loginWithEmail(email.trim(), password)
+        : await registerWithEmail(email.trim(), password, displayName.trim());
+
+      if (!isLogin) {
+        updatePrefs({ name: displayName.trim() });
+      }
+
+      if (!isLogin) {
+        router.push("/verify");
+        return;
+      }
+
+      if (result.user && !isAppVerifiedUser(result.user)) {
+        router.push("/verify");
+        return;
+      }
+
+      router.push("/home");
+    } catch (error) {
+      setStatus(error.message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleSocialLogin(provider) {
+    setStatus("");
+    setSubmitting(true);
+
+    try {
+      if (provider === "facebook" && !isFacebookLoginEnabled) {
+        setStatus(t(
+          "Facebook login is planned, but it is not enabled yet.",
+          "Facebook 登入已預留，但尚未啟用。"
+        ));
+        return;
+      }
+
+      if (!firebaseReady) {
+        setStatus(t(
+          "Firebase is not configured yet. Add the project env values to enable provider login.",
+          "尚未設定 Firebase。請加入專案環境變數以啟用社群登入。"
+        ));
+        return;
+      }
+
+      const result = await loginWithProvider(provider, isChinese ? "zh-TW" : "en");
+
+      if (result?.redirecting) {
+        setStatus(t(
+          "Opening secure sign-in in this tab...",
+          "正在此分頁開啟安全登入..."
+        ));
+        return;
+      }
+
+      if (result?.user && !isAppVerifiedUser(result.user)) {
+        router.push("/verify");
+        return;
+      }
+
+      router.push("/home");
+    } catch (error) {
+      setStatus(error.message);
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -183,16 +302,23 @@ export default function LoginPage() {
           </section>
 
           <section className="login-sheet">
-            <div className="login-form-stack">
+            <form className="login-form-stack" onSubmit={handleAuthSubmit}>
               <h2 className="login-title">
                 {isLogin ? t("Log In", "登入") : t("Sign Up", "註冊")}
               </h2>
+
+              {user && (
+                <div className="login-status-pill">
+                  {t("Signed in as", "目前登入")} {user.email}
+                </div>
+              )}
 
               <div className="login-social-grid" aria-label={t("Social login options", "社群登入選項")}>
                 <button
                   type="button"
                   className="login-social-button login-social-google"
-                  onClick={() => handleSocialLogin("Google")}
+                  onClick={() => handleSocialLogin("google")}
+                  disabled={submitting}
                 >
                   <span className="login-social-mark" aria-hidden="true">G</span>
                   <span>{t("Google", "Google")}</span>
@@ -200,8 +326,13 @@ export default function LoginPage() {
 
                 <button
                   type="button"
-                  className="login-social-button login-social-facebook"
-                  onClick={() => handleSocialLogin("Facebook")}
+                  className={[
+                    "login-social-button",
+                    "login-social-facebook",
+                    !isFacebookLoginEnabled ? "login-social-disabled" : "",
+                  ].join(" ")}
+                  onClick={() => handleSocialLogin("facebook")}
+                  disabled={submitting}
                 >
                   <span className="login-social-mark" aria-hidden="true">f</span>
                   <span>{t("Facebook", "Facebook")}</span>
@@ -214,40 +345,85 @@ export default function LoginPage() {
 
               {!isLogin && (
                 <div className="login-field">
-                  <span className="login-field-icon">👤</span>
+                  <UserRound className="login-field-icon" size={20} strokeWidth={2.8} />
                   <input
                     className="login-field-input"
+                    value={displayName}
+                    onChange={(event) => setDisplayName(event.target.value)}
                     placeholder={t("Username", "使用者名稱")}
                   />
                 </div>
               )}
 
               <div className="login-field">
-                <span className="login-field-icon">
-                  {isLogin ? "✉️" : "@"}
-                </span>
+                <Mail className="login-field-icon" size={20} strokeWidth={2.8} />
                 <input
+                  type="email"
                   className="login-field-input"
-                  placeholder={isLogin ? t("Username or Email", "使用者名稱或 Email") : t("Email Address", "Email 地址")}
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  placeholder={isLogin ? t("Email Address", "Email 地址") : t("Email Address", "Email 地址")}
+                  autoComplete="email"
+                  required
                 />
               </div>
 
               <div className="login-field">
-                <span className="login-field-icon">🔒</span>
+                <Lock className="login-field-icon" size={20} strokeWidth={2.8} />
                 <input
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   className="login-field-input"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
                   placeholder={t("Password", "密碼")}
+                  autoComplete={isLogin ? "current-password" : "new-password"}
+                  required
                 />
+                <button
+                  type="button"
+                  className="login-field-action"
+                  onClick={() => setShowPassword((value) => !value)}
+                  title={showPassword ? t("Hide password", "隱藏密碼") : t("Show password", "顯示密碼")}
+                >
+                  {showPassword ? (
+                    <EyeOff size={20} strokeWidth={2.8} />
+                  ) : (
+                    <Eye size={20} strokeWidth={2.8} />
+                  )}
+                </button>
               </div>
 
-              <button className="login-submit">
-                {isLogin ? t("Log In", "登入") : t("Register", "註冊")}
+              <button className="login-submit" disabled={submitting || !authReady}>
+                {submitting ? t("Please wait", "請稍候") : isLogin ? t("Log In", "登入") : t("Register", "註冊")}
               </button>
+
+              {isLogin && (
+                <button
+                  type="button"
+                  className="login-forgot-button"
+                  onClick={() => {
+                    const query = email.trim()
+                      ? `?email=${encodeURIComponent(email.trim())}`
+                      : "";
+                    router.push(`/reset-password${query}`);
+                  }}
+                >
+                  {t("Forgot password?", "忘記密碼？")}
+                </button>
+              )}
+
+              {(status || authError) && (
+                <div className="login-auth-status">
+                  {status || authError}
+                </div>
+              )}
 
               <button
                 type="button"
-                onClick={() => setIsLogin((value) => !value)}
+                onClick={() => {
+                  setStatus("");
+                  setIsLogin((value) => !value);
+                }}
                 className="login-switch"
               >
                 {isLogin ? t("No account? ", "還沒有帳號？") : t("Already have an account? ", "已經有帳號？")}
@@ -256,13 +432,13 @@ export default function LoginPage() {
                 </span>
               </button>
 
-              <Link
-                href="/home"
-                className="login-preview-link"
-              >
-                {t("Preview app without login", "不登入先預覽 App")}
-              </Link>
-            </div>
+              <p className="login-access-note">
+                {t(
+                  "A verified account is required to use the app.",
+                  "需要完成驗證的帳號才能使用 App。"
+                )}
+              </p>
+            </form>
           </section>
         </div>
       </div>

@@ -28,6 +28,7 @@ export default function TaiwanMap({
   teleopMode,
   teleopPos,
   todayPath,
+  routePath,
   onTeleopMove,
   recenterSignal,
   recenterTarget,
@@ -114,7 +115,10 @@ export default function TaiwanMap({
       polylineRef.current = null;
     }
 
-    const points = (todayPath || []).map((point) => [
+    const displayPath =
+      routePath?.length > 1 ? routePath : todayPath;
+
+    const points = (displayPath || []).map((point) => [
       point.latitude,
       point.longitude,
     ]);
@@ -126,7 +130,7 @@ export default function TaiwanMap({
         opacity: 0.9,
       }).addTo(map);
     }
-  }, [todayPath]);
+  }, [routePath, todayPath]);
 
   // Recenter only when signal changes.
   useEffect(() => {

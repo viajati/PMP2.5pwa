@@ -1,9 +1,15 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  Bike,
+  Car,
+  ChevronDown,
+  ChevronUp,
+  Footprints,
   Gamepad2,
+  Info,
   LocateFixed,
   MapPin,
   RotateCcw,
@@ -12,28 +18,141 @@ import {
 } from "lucide-react";
 import OriginalBottomNav from "@/components/OriginalBottomNav";
 import { useAppPreferences } from "@/components/AppPreferencesProvider";
+import { useAuth } from "@/components/AuthProvider";
 import {
   CITY_COORDS,
   REGION_NAMES,
   getFilteredCities,
   getNearestCity,
 } from "@/lib/cities";
-import { cityName, regionName } from "@/lib/i18n";
+import { cityName, regionName, transportName } from "@/lib/i18n";
 import {
   appendPoint,
+  appendSimulationPoint,
   calculateDistanceKm,
+  clearTodaySimulationRoute,
   clearTodayRoute,
+  getTodayRouteId,
   getTodayDistance,
+  loadTodaySimulationRoute,
   loadTodayRoute,
+  saveTodaySimulationRoute,
+  saveTodayRoute,
+  saveTodayRouteSummary,
 } from "@/lib/trackStorage";
 import { fetchHourlyAirQuality } from "@/lib/airQuality";
+import { buildRouteStats } from "@/lib/summaryStats";
+import {
+  exposureMultiplierForMode,
+  fetchRoute,
+  routeDurationForMode,
+} from "@/lib/routePlanner";
+import {
+  deleteUserRoute,
+  saveUserRoute,
+} from "@/lib/firebaseData";
 
 const TaiwanMap = dynamic(() => import("@/components/TaiwanMap"), {
   ssr: false,
 });
 
+const HOME_ROUTE_MODES = [
+  { id: "car", Icon: Car },
+  { id: "bike", Icon: Bike },
+  { id: "walk", Icon: Footprints },
+];
+
+const MIN_ROUTED_SEGMENT_KM = 0.05;
+
+function routePointKey(point) {
+  return `${Number(point.latitude).toFixed(5)},${Number(point.longitude).toFixed(5)}`;
+}
+
+function routeCacheKey(start, end, mode) {
+  return `${mode}:${routePointKey(start)}>${routePointKey(end)}`;
+}
+
+function compactRoutePoints(route) {
+  if (!route || route.length <= 2) return route || [];
+
+  const points = [route[0]];
+
+  for (let index = 1; index < route.length - 1; index += 1) {
+    const point = route[index];
+    const previous = points[points.length - 1];
+
+    if (calculateDistanceKm(previous, point) >= MIN_ROUTED_SEGMENT_KM) {
+      points.push(point);
+    }
+  }
+
+  const last = route[route.length - 1];
+  if (routePointKey(points[points.length - 1]) !== routePointKey(last)) {
+    points.push(last);
+  }
+
+  return points;
+}
+
+function fallbackRouteSegment(start, end, mode) {
+  const distance = calculateDistanceKm(start, end);
+
+  return {
+    coords: [start, end],
+    distance,
+    duration: routeDurationForMode(mode, distance, distance * 1.4),
+    source: "GPS estimate",
+  };
+}
+
+function pointPm25(point) {
+  const value = Number(point?.pm25);
+  return Number.isFinite(value) && value > 0 ? value : null;
+}
+
+function calculateRoadExposure(routePoints, routedSegments, mode, fallbackStats) {
+  if (!routedSegments?.length) return fallbackStats;
+
+  const multiplier = exposureMultiplierForMode(mode);
+  let distance = 0;
+  let minutes = 0;
+  let exposureLoad = 0;
+  let weightedPm = 0;
+  let peak = 0;
+  let low = Number.POSITIVE_INFINITY;
+
+  routedSegments.forEach((segment, index) => {
+    const start = routePoints[index];
+    const end = routePoints[index + 1];
+    const pm25 =
+      pointPm25(end) ||
+      pointPm25(start) ||
+      fallbackStats.avgPm25 ||
+      0;
+    const segmentLoad = pm25 * (segment.duration / 60) * multiplier;
+
+    distance += segment.distance;
+    minutes += segment.duration;
+    exposureLoad += segmentLoad;
+    weightedPm += pm25 * segment.duration;
+    peak = Math.max(peak, pm25);
+    low = Math.min(low, pm25);
+  });
+
+  return {
+    ...fallbackStats,
+    km: Number(distance.toFixed(2)),
+    minutes: Math.round(minutes),
+    exposureLoad: Number(exposureLoad.toFixed(1)),
+    avgPm25: minutes > 0 ? Number((weightedPm / minutes).toFixed(1)) : fallbackStats.avgPm25,
+    peak: Number((peak || fallbackStats.peak || 0).toFixed(1)),
+    low: Number((low === Number.POSITIVE_INFINITY ? fallbackStats.low || 0 : low).toFixed(1)),
+  };
+}
+
 export default function HomePage() {
   const { prefs, t } = useAppPreferences();
+  const { user, firebaseReady } = useAuth();
   const isChinese = prefs.chinese;
   const [location, setLocation] = useState({
     latitude: 23.5,
@@ -46,6 +165,15 @@ export default function HomePage() {
 
   const [todayPath, setTodayPath] = useState([]);
   const [distance, setDistance] = useState(0);
+  const [simulationPath, setSimulationPath] = useState([]);
+  const [simulationDistance, setSimulationDistance] = useState(0);
+  const [routeMode, setRouteMode] = useState("walk");
+  const [roadRoute, setRoadRoute] = useState(null);
+  const [roadRoutingLoading, setRoadRoutingLoading] = useState(false);
+  const routeCacheRef = useRef(new Map());
+  const [simulationHelpOpen, setSimulationHelpOpen] = useState(false);
+  const [calculationOpen, setCalculationOpen] = useState(false);
+  const [homeInfoOpen, setHomeInfoOpen] = useState(false);
 
   const [currentCity, setCurrentCity] = useState("Taiwan");
   const [routeLoad, setRouteLoad] = useState(null);
@@ -55,10 +183,21 @@ export default function HomePage() {
   const [teleopPos, setTeleopPos] = useState(null);
   const [recenterSignal, setRecenterSignal] = useState(0);
   const [recenterTarget, setRecenterTarget] = useState(null);
+  const todayRouteId = useMemo(() => getTodayRouteId(), []);
 
   const filteredCities = useMemo(() => {
     return getFilteredCities(search, selectedRegion, isChinese);
   }, [search, selectedRegion, isChinese]);
+  const activePath = teleopMode ? simulationPath : todayPath;
+  const activeDistance = teleopMode ? simulationDistance : distance;
+
+  const syncCloudRoute = useCallback((route, summary = {}) => {
+    if (!firebaseReady || !user?.uid) return;
+
+    saveUserRoute(user.uid, todayRouteId, route, summary).catch((error) => {
+      console.warn("Unable to sync cloud route:", error);
+    });
+  }, [firebaseReady, todayRouteId, user]);
 
   useEffect(() => {
     function handleKeyDown(event) {
@@ -78,8 +217,11 @@ export default function HomePage() {
       if (cancelled) return;
 
       const savedRoute = loadTodayRoute();
+      const savedSimulationRoute = loadTodaySimulationRoute();
       setTodayPath(savedRoute);
       setDistance(getTodayDistance(savedRoute));
+      setSimulationPath(savedSimulationRoute);
+      setSimulationDistance(getTodayDistance(savedSimulationRoute));
     });
 
     if (!navigator.geolocation) {
@@ -103,14 +245,24 @@ export default function HomePage() {
         };
 
         setLocation(nextLocation);
-        setCurrentCity(
-          getNearestCity(nextLocation.latitude, nextLocation.longitude)
-        );
-
-        const result = appendPoint(
+        const nearestCity = getNearestCity(
           nextLocation.latitude,
           nextLocation.longitude
         );
+        setCurrentCity(nearestCity);
+
+        const result = appendPoint(
+          nextLocation.latitude,
+          nextLocation.longitude,
+          {
+            accuracy: position.coords.accuracy ?? null,
+            city: nearestCity,
+          }
+        );
+        syncCloudRoute(result.route, {
+          distanceKm: Number(result.distance.toFixed(2)),
+          routeKind: "gps",
+        });
         setTodayPath(result.route);
         setDistance(result.distance);
       },
@@ -126,24 +278,35 @@ export default function HomePage() {
 
     const watchId = navigator.geolocation.watchPosition(
       (position) => {
-        if (teleopMode) return;
-
         const nextLocation = {
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
         };
 
-        setLocation(nextLocation);
-        setCurrentCity(
-          getNearestCity(nextLocation.latitude, nextLocation.longitude)
+        const nearestCity = getNearestCity(
+          nextLocation.latitude,
+          nextLocation.longitude
         );
 
         const result = appendPoint(
           nextLocation.latitude,
-          nextLocation.longitude
+          nextLocation.longitude,
+          {
+            accuracy: position.coords.accuracy ?? null,
+            city: nearestCity,
+          }
         );
+        syncCloudRoute(result.route, {
+          distanceKm: Number(result.distance.toFixed(2)),
+          routeKind: "gps",
+        });
         setTodayPath(result.route);
         setDistance(result.distance);
+
+        if (!teleopMode) {
+          setLocation(nextLocation);
+          setCurrentCity(nearestCity);
+        }
       },
       () => {},
       {
@@ -157,7 +320,81 @@ export default function HomePage() {
       cancelled = true;
       navigator.geolocation.clearWatch(watchId);
     };
-  }, [teleopMode]);
+  }, [syncCloudRoute, teleopMode]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const routePoints = compactRoutePoints(activePath);
+
+    if (routePoints.length < 2) {
+      queueMicrotask(() => {
+        if (cancelled) return;
+        setRoadRoute(null);
+        setRoadRoutingLoading(false);
+      });
+
+      return undefined;
+    }
+
+    queueMicrotask(() => {
+      if (!cancelled) setRoadRoutingLoading(true);
+    });
+
+    const timer = window.setTimeout(async () => {
+      try {
+        const segments = [];
+        const coords = [];
+        let distance = 0;
+        let duration = 0;
+        let source = "OSRM";
+
+        for (let index = 1; index < routePoints.length; index += 1) {
+          if (cancelled) return;
+
+          const start = routePoints[index - 1];
+          const end = routePoints[index];
+          const key = routeCacheKey(start, end, routeMode);
+
+          let segment = routeCacheRef.current.get(key);
+
+          if (!segment) {
+            segment = await fetchRoute(start, end, routeMode);
+            if (!segment) segment = fallbackRouteSegment(start, end, routeMode);
+            routeCacheRef.current.set(key, segment);
+          }
+
+          segments.push(segment);
+          distance += segment.distance;
+          duration += segment.duration;
+
+          if (segment.source !== "OSRM") source = "GPS estimate";
+
+          const segmentCoords = segment.coords?.length
+            ? segment.coords
+            : [start, end];
+          coords.push(...(coords.length ? segmentCoords.slice(1) : segmentCoords));
+        }
+
+        if (cancelled) return;
+
+        setRoadRoute({
+          coords,
+          distance: Number(distance.toFixed(2)),
+          duration,
+          routePoints,
+          segments,
+          source,
+        });
+      } finally {
+        if (!cancelled) setRoadRoutingLoading(false);
+      }
+    }, 550);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [activePath, routeMode]);
 
   useEffect(() => {
     let alive = true;
@@ -196,8 +433,8 @@ export default function HomePage() {
       try {
         const uniqueCities = new Set([currentCity]);
 
-        for (let i = 1; i < todayPath.length; i += 1) {
-          const point = todayPath[i];
+        for (let i = 0; i < activePath.length; i += 1) {
+          const point = activePath[i];
           const city = getNearestCity(point.latitude, point.longitude);
           if (CITY_COORDS[city]) uniqueCities.add(city);
         }
@@ -215,47 +452,103 @@ export default function HomePage() {
           (currentCityPm25 * 1 * 1.35).toFixed(1)
         );
 
-        let totalDistanceKm = 0;
-        let totalMinutes = 0;
-        let totalExposureLoad = 0;
-        let weightedPmSum = 0;
+        let routeMetadataChanged = false;
+        const enrichedRoute = activePath.map((point) => {
+          const pointCity = point.city || getNearestCity(point.latitude, point.longitude);
+          const pointPm25 = cityPmMap[pointCity] || currentCityPm25 || 0;
+          const roundedPm25 = Number(pointPm25.toFixed(1));
+          const nextPoint = {
+            ...point,
+            city: pointCity,
+            pm25: roundedPm25,
+          };
 
-        const walkingSpeedKmPerHour = 5;
-        const walkingExposureMultiplier = 1.35;
+          if (point.city !== nextPoint.city || point.pm25 !== nextPoint.pm25) {
+            routeMetadataChanged = true;
+          }
 
-        for (let i = 1; i < todayPath.length; i += 1) {
-          const prev = todayPath[i - 1];
-          const curr = todayPath[i];
+          return nextPoint;
+        });
 
-          const segmentKm = calculateDistanceKm(prev, curr);
-          const segmentMinutes = (segmentKm / walkingSpeedKmPerHour) * 60;
+        const baseStats = buildRouteStats(enrichedRoute, {
+          avgPm25: currentCityPm25 || 0,
+        });
+        const enrichedRoadPoints = roadRoute?.routePoints?.map((point) => {
+          const pointCity = point.city || getNearestCity(point.latitude, point.longitude);
+          const pointPm25 = cityPmMap[pointCity] || currentCityPm25 || 0;
 
-          const segmentCity = getNearestCity(curr.latitude, curr.longitude);
-          const segmentPm25 = cityPmMap[segmentCity] || currentCityPm25;
-
-          const segmentLoad =
-            segmentPm25 * (segmentMinutes / 60) * walkingExposureMultiplier;
-
-          totalDistanceKm += segmentKm;
-          totalMinutes += segmentMinutes;
-          totalExposureLoad += segmentLoad;
-          weightedPmSum += segmentPm25 * segmentKm;
-        }
-
-        const avgRoutePm25 =
-          totalDistanceKm > 0 ? weightedPmSum / totalDistanceKm : 0;
+          return {
+            ...point,
+            city: pointCity,
+            pm25: Number(pointPm25.toFixed(1)),
+          };
+        });
+        const stats = roadRoute
+          ? calculateRoadExposure(
+              enrichedRoadPoints,
+              roadRoute.segments,
+              routeMode,
+              baseStats
+            )
+          : baseStats;
+        const routeSummary = {
+          distanceKm: stats.km,
+          routeMinutes: stats.minutes,
+          exposureLoad: stats.exposureLoad,
+          avgPm25: stats.avgPm25,
+          peakPm25: stats.peak,
+          lowPm25: stats.low,
+          segmentCount: stats.segments,
+          samples: stats.hits,
+          cityPath: stats.cityPath,
+          durationSource: stats.durationSource,
+          routeMode,
+          routeSource: roadRoute?.source || "GPS samples",
+          routeKind: teleopMode ? "simulation" : "gps",
+          calculation: {
+            distance: roadRoute
+              ? "OSRM road route distance between sampled points"
+              : "GPS sample-to-sample distance",
+            duration: roadRoute
+              ? `${transportName(routeMode, false)} route duration`
+              : stats.durationSource,
+            exposure: `sum of PM2.5 x segment hours x ${routeMode} exposure rate`,
+            multiplier: exposureMultiplierForMode(routeMode),
+          },
+          updatedAt: Date.now(),
+        };
 
         if (!alive) return;
+
+        if (!teleopMode && enrichedRoute.length > 0) {
+          saveTodayRouteSummary(routeSummary);
+          syncCloudRoute(enrichedRoute, routeSummary);
+        }
+
+        if (enrichedRoute.length > 0 && routeMetadataChanged) {
+          if (teleopMode) {
+            saveTodaySimulationRoute(enrichedRoute);
+            setSimulationPath(enrichedRoute);
+          } else {
+            saveTodayRoute(enrichedRoute);
+            setTodayPath(enrichedRoute);
+          }
+        }
 
         setRouteLoad({
           city: currentCity,
           currentCityPm25: Number(currentCityPm25.toFixed(1)),
           currentCityExposure,
-          avgPm25: Number(avgRoutePm25.toFixed(1)),
-          routeMinutes: Math.round(totalMinutes),
-          exposureLoad: Number(totalExposureLoad.toFixed(1)),
-          routeDistanceKm: Number(totalDistanceKm.toFixed(2)),
-          segmentCount: Math.max(0, todayPath.length - 1),
+          avgPm25: stats.avgPm25,
+          routeMinutes: stats.minutes,
+          exposureLoad: stats.exposureLoad,
+          routeDistanceKm: stats.km,
+          segmentCount: stats.segments,
+          mode: routeMode,
+          routeSource: teleopMode
+            ? roadRoute?.source || "Simulation"
+            : roadRoute?.source || "GPS samples",
+          multiplier: exposureMultiplierForMode(routeMode),
         });
       } catch {
         if (!alive) return;
@@ -271,7 +564,7 @@ export default function HomePage() {
       alive = false;
       clearTimeout(timer);
     };
-  }, [todayPath, currentCity]);
+  }, [activePath, currentCity, roadRoute, routeMode, syncCloudRoute, teleopMode]);
 
   function handleCitySelect(city) {
     const coords = CITY_COORDS[city];
@@ -282,9 +575,9 @@ export default function HomePage() {
 
     if (teleopMode) {
       setTeleopPos(coords);
-      const result = appendPoint(coords.latitude, coords.longitude);
-      setTodayPath(result.route);
-      setDistance(result.distance);
+      const result = appendSimulationPoint(coords.latitude, coords.longitude, { city });
+      setSimulationPath(result.route);
+      setSimulationDistance(result.distance);
     }
 
     closeSearch();
@@ -293,12 +586,14 @@ export default function HomePage() {
 
   function handleTeleopMove(latitude, longitude) {
     const next = { latitude, longitude };
-    setTeleopPos(next);
-    setCurrentCity(getNearestCity(latitude, longitude));
+    const city = getNearestCity(latitude, longitude);
 
-    const result = appendPoint(latitude, longitude);
-    setTodayPath(result.route);
-    setDistance(result.distance);
+    setTeleopPos(next);
+    setCurrentCity(city);
+
+    const result = appendSimulationPoint(latitude, longitude, { city });
+    setSimulationPath(result.route);
+    setSimulationDistance(result.distance);
   }
 
   function toggleTeleop() {
@@ -359,7 +654,22 @@ export default function HomePage() {
   }
 
   function resetTodayRoute() {
+    if (teleopMode) {
+      clearTodaySimulationRoute();
+      setSimulationPath([]);
+      setSimulationDistance(0);
+      setRoadRoute(null);
+      setRouteLoad(null);
+      return;
+    }
+
     clearTodayRoute();
+    if (firebaseReady && user?.uid) {
+      deleteUserRoute(user.uid, todayRouteId).catch((error) => {
+        console.warn("Unable to delete cloud route:", error);
+      });
+    }
+
     setTodayPath([]);
     setDistance(0);
     setRouteLoad(null);
@@ -370,6 +680,18 @@ export default function HomePage() {
     setSearch("");
   }
 
+  const displayedDistance = routeLoad?.routeDistanceKm ?? activeDistance;
+  const routeSourceLabel = roadRoutingLoading
+    ? t("routing road path", "正在規劃道路路線")
+    : teleopMode
+      ? routeLoad?.routeSource || t("Simulation", "模擬")
+      : routeLoad?.routeSource || t("GPS samples", "GPS 樣本");
+  const modeFactor = routeLoad?.multiplier ?? exposureMultiplierForMode(routeMode);
+  const routeFormula = t(
+    `Load is summed by time: each road segment uses PM2.5 × segment hours × ${transportName(routeMode, false)} exposure rate (${modeFactor}x per travel hour). Avg PM2.5 (${routeLoad?.avgPm25 ?? 0}) is weighted by segment time, not just city count.`,
+    `負荷會依時間加總：每段道路使用 PM2.5 × 該段小時 × ${transportName(routeMode, true)}暴露率（每小時 ${modeFactor}x）。平均 PM2.5 (${routeLoad?.avgPm25 ?? 0}) 依各路段時間加權，不只是城市數量平均。`
+  );
+
   return (
     <main className="app-root home-root">
       <div className="phone-frame-map">
@@ -377,7 +699,8 @@ export default function HomePage() {
           location={location}
           teleopMode={teleopMode}
           teleopPos={teleopPos}
-          todayPath={todayPath}
+          todayPath={activePath}
+          routePath={roadRoute?.coords || []}
           onTeleopMove={handleTeleopMove}
           recenterSignal={recenterSignal}
           recenterTarget={recenterTarget}
@@ -458,95 +781,210 @@ export default function HomePage() {
         )}
 
         {teleopMode && !isSearching && (
-          <div className="simulation-help-card">
-            <div className="simulation-pill">{t("Simulation Mode", "模擬模式")}</div>
-            <p className="simulation-title">
-              {t("Drag the green marker to simulate movement.", "拖曳綠色標記來模擬移動。")}
-            </p>
-            <p className="simulation-copy">
-              {t(
-                "Each marker move adds a route segment. The app estimates exposure load across the whole simulated route, not only the final city.",
-                "每次移動標記都會新增一段路線，系統會估算整段模擬路線的暴露負荷，而不只看最後城市。"
+          <div
+            className={[
+              "simulation-help-card",
+              !simulationHelpOpen ? "simulation-help-card-collapsed" : "",
+            ].join(" ")}
+          >
+            <button
+              type="button"
+              className="simulation-help-header"
+              onClick={() => setSimulationHelpOpen((value) => !value)}
+              aria-expanded={simulationHelpOpen}
+            >
+              <span className="simulation-pill">{t("Simulation", "模擬")}</span>
+              <span className="simulation-compact-copy">
+                {t("Drag marker, route by road.", "拖曳標記，道路規劃。")}
+              </span>
+              {simulationHelpOpen ? (
+                <ChevronUp size={17} strokeWidth={3} />
+              ) : (
+                <ChevronDown size={17} strokeWidth={3} />
               )}
-            </p>
+            </button>
+
+            {simulationHelpOpen && (
+              <>
+                <p className="simulation-title">
+                  {t("Drag the green marker to simulate movement.", "拖曳綠色標記來模擬移動。")}
+                </p>
+                <p className="simulation-copy">
+                  {t(
+                    "Each marker move adds a sampled point. Home routes between points by road when available, then scores exposure by segment time.",
+                    "每次移動標記都會新增取樣點。首頁會盡量用道路連接取樣點，再依路段時間計算暴露。"
+                  )}
+                </p>
+              </>
+            )}
           </div>
         )}
 
-        <div className="map-control-stack">
-          <button
-            onClick={toggleTeleop}
-            title={teleopMode ? t("Exit simulation mode", "結束模擬模式") : t("Start simulation mode", "開始模擬模式")}
-            className={[
-              "floating-control",
-              teleopMode ? "floating-control-active" : "",
-            ].join(" ")}
-          >
-            <Gamepad2 size={23} strokeWidth={3} />
-          </button>
-
-          <button
-            onClick={recenter}
-            title={t("Recenter map", "重新置中地圖")}
-            className="floating-control"
-          >
-            <LocateFixed size={24} strokeWidth={3} />
-          </button>
-        </div>
-
-        <div className="home-bottom-sheet">
-          <div className="home-bottom-grid">
-            <div className="home-bottom-cell">
-              <p className="home-bottom-label">{t("Current City", "目前城市")}</p>
-              <p className="home-bottom-value">{cityName(currentCity, isChinese)}</p>
-              <p className="home-bottom-sub">
-                PM2.5 {routeLoad?.currentCityPm25 ?? 0} µg/m³
-              </p>
-            </div>
-
-            <div className="home-bottom-cell">
-              <p className="home-bottom-label">{t("1h City Load", "1 小時城市負荷")}</p>
-              <p className="home-bottom-value-strong">
-                {routeLoadLoading ? "..." : routeLoad?.currentCityExposure ?? 0}
-                <span className="home-bottom-unit">{t("score", "分")}</span>
-              </p>
-              <p className="home-bottom-sub">{t("local estimate", "本地估算")}</p>
-            </div>
-          </div>
-
-          <div className="home-bottom-divider" />
-
-          <div className="home-bottom-grid">
-            <div className="home-bottom-cell">
-              <p className="home-bottom-label">{t("Distance", "距離")}</p>
-              <p className="home-bottom-value-strong">
-                {distance.toFixed(2)}
-                <span className="home-bottom-unit">KM</span>
-              </p>
-            </div>
-
-            <div className="home-bottom-cell">
-              <p className="home-bottom-label">{t("Total Route Load", "總路線負荷")}</p>
-              <p className="home-bottom-value-strong">
-                {routeLoadLoading ? "..." : routeLoad?.exposureLoad ?? 0}
-                <span className="home-bottom-unit">{t("score", "分")}</span>
-              </p>
-            </div>
-          </div>
-
-          <div className="home-bottom-footer">
-            <p className="home-bottom-note">
-              {t("Avg PM2.5", "平均 PM2.5")} {routeLoad?.avgPm25 ?? 0} · {routeLoad?.routeMinutes ?? 0} {t("min", "分鐘")} · {routeLoad?.segmentCount ?? 0} {t("segments", "路段")}
-            </p>
+        <div className="home-bottom-dock">
+          <div className="map-control-stack">
+            <button
+              onClick={toggleTeleop}
+              title={teleopMode ? t("Exit simulation mode", "結束模擬模式") : t("Start simulation mode", "開始模擬模式")}
+              className={[
+                "floating-control",
+                teleopMode ? "floating-control-active" : "",
+              ].join(" ")}
+            >
+              <Gamepad2 size={23} strokeWidth={3} />
+            </button>
 
             <button
-              type="button"
-              onClick={resetTodayRoute}
-              title={t("Reset today's route", "重設今日路線")}
-              className="home-bottom-reset"
+              onClick={recenter}
+              title={t("Recenter map", "重新置中地圖")}
+              className="floating-control"
             >
-              <RotateCcw size={11} strokeWidth={3} />
-              {t("Reset", "重設")}
+              <LocateFixed size={24} strokeWidth={3} />
             </button>
+          </div>
+
+          <div
+            className={[
+              "home-bottom-sheet",
+              !homeInfoOpen ? "home-bottom-sheet-collapsed" : "",
+            ].join(" ")}
+          >
+            <button
+              type="button"
+              className="home-info-toggle"
+              onClick={() => setHomeInfoOpen((value) => !value)}
+              aria-expanded={homeInfoOpen}
+            >
+              <div className="home-info-toggle-copy">
+                <p className="home-bottom-label">
+                  {homeInfoOpen ? t("Live Route", "即時路線") : t("Current City", "目前城市")}
+                </p>
+                <p className="home-info-toggle-title">
+                  {cityName(currentCity, isChinese)}
+                </p>
+                <p className="home-info-toggle-meta">
+                  {transportName(routeMode, isChinese)} · {Number(displayedDistance || 0).toFixed(2)} KM · {routeLoadLoading ? "..." : routeLoad?.exposureLoad ?? 0} {t("score", "分")}
+                </p>
+              </div>
+              <span className="home-info-toggle-icon">
+                {homeInfoOpen ? (
+                  <ChevronDown size={18} strokeWidth={3} />
+                ) : (
+                  <ChevronUp size={18} strokeWidth={3} />
+                )}
+              </span>
+            </button>
+
+            {homeInfoOpen && (
+              <>
+              <div className="home-bottom-divider home-bottom-divider-after-toggle" />
+
+              <div className="home-bottom-grid">
+                <div className="home-bottom-cell">
+                  <p className="home-bottom-label">{t("Current City", "目前城市")}</p>
+                  <p className="home-bottom-value">{cityName(currentCity, isChinese)}</p>
+                  <p className="home-bottom-sub">
+                    PM2.5 {routeLoad?.currentCityPm25 ?? 0} µg/m³
+                  </p>
+                </div>
+
+                <div className="home-bottom-cell">
+                  <p className="home-bottom-label">{t("1h City Load", "1 小時城市負荷")}</p>
+                  <p className="home-bottom-value-strong">
+                    {routeLoadLoading ? "..." : routeLoad?.currentCityExposure ?? 0}
+                    <span className="home-bottom-unit">{t("score", "分")}</span>
+                  </p>
+                  <p className="home-bottom-sub">{t("local estimate", "本地估算")}</p>
+                </div>
+              </div>
+
+              <div className="home-bottom-divider" />
+
+              <div className="home-route-mode-row" aria-label={t("Route mode", "路線模式")}>
+                {HOME_ROUTE_MODES.map(({ id, Icon }) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setRouteMode(id)}
+                    className={[
+                      "home-route-mode-button",
+                      routeMode === id ? "home-route-mode-button-active" : "",
+                    ].join(" ")}
+                    title={transportName(id, isChinese)}
+                  >
+                    <Icon size={15} strokeWidth={3} />
+                    <span>{transportName(id, isChinese)}</span>
+                  </button>
+                ))}
+              </div>
+
+              <div className="home-bottom-divider" />
+
+              <div className="home-bottom-grid">
+                <div className="home-bottom-cell">
+                  <p className="home-bottom-label">{t("Road Distance", "道路距離")}</p>
+                  <p className="home-bottom-value-strong">
+                    {Number(displayedDistance || 0).toFixed(2)}
+                    <span className="home-bottom-unit">KM</span>
+                  </p>
+                </div>
+
+                <div className="home-bottom-cell">
+                  <p className="home-bottom-label">{t("Total Route Load", "總路線負荷")}</p>
+                  <p className="home-bottom-value-strong">
+                    {routeLoadLoading ? "..." : routeLoad?.exposureLoad ?? 0}
+                    <span className="home-bottom-unit">{t("score", "分")}</span>
+                  </p>
+                </div>
+              </div>
+
+              <div className="home-bottom-footer">
+                <p className="home-bottom-note">
+                  {transportName(routeMode, isChinese)} · {routeSourceLabel} · {routeLoad?.routeMinutes ?? 0} {t("min", "分鐘")} · {routeLoad?.segmentCount ?? 0} {t("samples", "樣本")}
+                </p>
+
+                <button
+                  type="button"
+                  onClick={resetTodayRoute}
+                  title={t("Reset today's route", "重設今日路線")}
+                  className="home-bottom-reset"
+                >
+                  <RotateCcw size={11} strokeWidth={3} />
+                  {t("Reset", "重設")}
+                </button>
+
+                <button
+                  type="button"
+                  className="home-bottom-icon-button"
+                  onClick={() => setCalculationOpen((value) => !value)}
+                  aria-expanded={calculationOpen}
+                  title={t("How load is calculated", "負荷如何計算")}
+                >
+                  <Info size={14} strokeWidth={3} />
+                </button>
+              </div>
+
+              {calculationOpen && (
+                <div className="home-bottom-formula">
+                  <p className="home-formula-copy">
+                    {routeFormula}
+                  </p>
+                </div>
+              )}
+              </>
+            )}
+
+            {!homeInfoOpen && (
+              <button
+                type="button"
+                onClick={resetTodayRoute}
+                title={t("Reset today's route", "重設今日路線")}
+                className="home-bottom-reset"
+              >
+                <RotateCcw size={11} strokeWidth={3} />
+                {t("Reset", "重設")}
+              </button>
+            )}
+
           </div>
         </div>
 

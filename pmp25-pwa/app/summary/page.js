@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Activity,
   BarChart3,
@@ -14,8 +14,17 @@ import {
 } from "lucide-react";
 import OriginalBottomNav from "@/components/OriginalBottomNav";
 import { useAppPreferences } from "@/components/AppPreferencesProvider";
+import { useAuth } from "@/components/AuthProvider";
 import { buildWeeklySummary } from "@/lib/summaryStats";
-import { riskName, summaryDate, summaryDayName } from "@/lib/i18n";
+import { loadUserRouteHistory } from "@/lib/firebaseData";
+import { routeDateId } from "@/lib/trackStorage";
+import {
+  cityName,
+  riskName,
+  summaryDate,
+  summaryDayName,
+  transportName,
+} from "@/lib/i18n";
 
 function safeRisk(day) {
   return day?.risk || { label: "LOW", color: "#34C759" };
@@ -23,6 +32,7 @@ function safeRisk(day) {
 
 export default function SummaryPage() {
   const { prefs, t } = useAppPreferences();
+  const { user, firebaseReady } = useAuth();
   const isChinese = prefs.chinese;
   const [summary, setSummary] = useState({
     days: [],
@@ -33,22 +43,39 @@ export default function SummaryPage() {
   });
 
   const [expandedDay, setExpandedDay] = useState(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
 
-  function refreshSummary() {
-    setSummary(buildWeeklySummary());
-  }
+  const refreshSummary = useCallback(async () => {
+    setSummaryLoading(true);
+
+    try {
+      let routeMap = null;
+
+      if (firebaseReady && user?.uid) {
+        const routeIds = Array.from({ length: 7 }, (_, index) => routeDateId(index));
+        routeMap = await loadUserRouteHistory(user.uid, routeIds);
+      }
+
+      setSummary(buildWeeklySummary(routeMap));
+    } catch (error) {
+      console.warn("Unable to load cloud route history:", error);
+      setSummary(buildWeeklySummary());
+    } finally {
+      setSummaryLoading(false);
+    }
+  }, [firebaseReady, user]);
 
   useEffect(() => {
     let cancelled = false;
 
-    queueMicrotask(() => {
-      if (!cancelled) refreshSummary();
+    queueMicrotask(async () => {
+      if (!cancelled) await refreshSummary();
     });
 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [refreshSummary]);
 
   const today = summary.days[0] || {
     km: 0,
@@ -83,7 +110,11 @@ export default function SummaryPage() {
               className="app-icon-button"
               title={t("Refresh summary", "重新整理總覽")}
             >
-              <RefreshCw size={22} strokeWidth={3} />
+              <RefreshCw
+                size={22}
+                strokeWidth={3}
+                className={summaryLoading ? "animate-spin" : ""}
+              />
             </button>
           </div>
 
@@ -256,9 +287,29 @@ export default function SummaryPage() {
                         </p>
 
                         <span className="summary-source-chip">
-                          {day.isPersonal ? t("personal route", "個人路線") : t("no data", "無資料")}
+                          {day.routeSource
+                            ? `${day.routeSource} · ${transportName(day.routeMode, isChinese)}`
+                            : day.isPersonal
+                              ? t("personal route", "個人路線")
+                              : t("no data", "無資料")}
                         </span>
                       </div>
+
+                      <p className="summary-route-path">
+                        {day.cityPath?.length > 0
+                          ? `${t("Sampled path", "取樣路徑")}：${day.cityPath.map((city) => cityName(city, isChinese)).join(" → ")}`
+                          : t("No route samples recorded for this day.", "這一天沒有記錄路線樣本。")}
+                      </p>
+
+                      <p className="summary-inline-meta mt-2">
+                        {day.durationSource === "timestamp"
+                          ? t("Duration comes from GPS sample timestamps.", "時間由 GPS 樣本時間戳計算。")
+                          : day.durationSource === "road"
+                            ? t("Distance and duration use the routed road path saved from Home.", "距離與時間使用首頁儲存的道路路線。")
+                          : day.isPersonal
+                            ? t("Duration is estimated from distance because timestamp gaps were unavailable.", "因缺少可用時間戳，時間由距離估算。")
+                            : t("Start a route on Home to build this history automatically.", "在首頁開始記錄路線後，這裡會自動建立歷史。")}
+                      </p>
 
                       <div className="interval-box">
                         <div className="interval-title-row">
@@ -312,8 +363,8 @@ export default function SummaryPage() {
               <ShieldAlert className="app-notice-icon" size={22} />
               <p className="app-notice-text">
                 {t(
-                  "This follows the original Summary structure: daily history log, collapsible details, peak/low/average values, and interval breakdowns. The next improvement is storing real PM2.5 per route segment from Home.",
-                  "這裡保留原本的總覽結構：每日歷史紀錄、可展開細節、最高 / 最低 / 平均值與時段分析。下一步可以從首頁儲存每段路線的真實 PM2.5。"
+                  "Summary now uses your sampled GPS route. When Home has a routed path, distance and duration come from that road route. Load is time-based: PM2.5 x route hours x transport exposure rate.",
+                  "總覽現在會使用你的 GPS 取樣路線。若首頁已取得道路路線，距離與時間會使用該道路路線。負荷以時間計算：PM2.5 × 路線小時 × 交通暴露率。"
                 )}
               </p>
             </div>
