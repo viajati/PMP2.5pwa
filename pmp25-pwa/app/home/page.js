@@ -951,7 +951,7 @@ export default function HomePage() {
               <div className="home-route-chain">
                 <div className="home-route-chain-head">
                   <p className="home-bottom-label">
-                    {teleopMode ? t("Simulation Route", "模擬路線") : t("Phone GPS Route", "手機 GPS 路線")}
+                    {teleopMode ? t("Simulation Route", "模擬路線") : t("GPS Route", "GPS 路線")}
                   </p>
 
                   {routeCityPath.length > 5 && (
