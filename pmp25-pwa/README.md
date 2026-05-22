@@ -257,7 +257,11 @@ NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=
 NEXT_PUBLIC_FIREBASE_APP_ID=
 NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=
 NEXT_PUBLIC_ENABLE_FACEBOOK_LOGIN=false
+GEMINI_API_KEY=
+GEMINI_MODEL=gemini-2.5-flash
 ```
+
+`GEMINI_API_KEY` is server-only and must be set in Vercel project environment variables, not exposed as a `NEXT_PUBLIC_` variable. It powers the Records Live AI health suggestion card. If it is missing, the app falls back to local rule-based advice.
 
 In Firebase Console, enable:
 

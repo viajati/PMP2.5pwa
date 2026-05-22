@@ -168,6 +168,8 @@ export default function RecordsPage() {
   const [rows, setRows] = useState(() => fallbackRows());
   const [loading, setLoading] = useState(true);
   const [healthProfile, setHealthProfile] = useState(DEFAULT_HEALTH_PROFILE);
+  const [aiHealthAdvice, setAiHealthAdvice] = useState(null);
+  const [adviceLoading, setAdviceLoading] = useState(false);
 
   const [startCity, setStartCity] = useState("Taipei City");
   const [endCity, setEndCity] = useState("Hsinchu City");
@@ -241,20 +243,93 @@ export default function RecordsPage() {
   const isNight = isNightHour(currentHour);
   const weather = getWeatherMeta(selected?.weatherCode, selected?.windSpeed);
   const WeatherIcon = weather.Icon;
-  const healthAdvice = buildHealthAdvice({
-    city: cityName(city, isChinese),
-    pm25: selected?.pm25 || 0,
-    weatherLabel: weatherName(weather.label, isChinese),
-    weatherType: weather.type,
-    profile: healthProfile,
-    chinese: isChinese,
-  });
+  const caqi = caqiFrom(selected?.pm25 || 0, selected?.pm10 || 0, selected?.co || 0);
+  const healthProfileKey = JSON.stringify(healthProfile);
+  const fallbackHealthAdvice = useMemo(() => (
+    buildHealthAdvice({
+      city: cityName(city, isChinese),
+      pm25: selected?.pm25 || 0,
+      weatherLabel: weatherName(weather.label, isChinese),
+      weatherType: weather.type,
+      profile: healthProfile,
+      chinese: isChinese,
+    })
+  ), [city, healthProfile, isChinese, selected?.pm25, weather.label, weather.type]);
+  const healthAdvice = aiHealthAdvice || fallbackHealthAdvice;
+
+  useEffect(() => {
+    const pm25 = Number(selected?.pm25);
+
+    if (!Number.isFinite(pm25) || loading) {
+      queueMicrotask(() => setAiHealthAdvice(null));
+      return undefined;
+    }
+
+    const controller = new AbortController();
+    queueMicrotask(() => {
+      if (!controller.signal.aborted) setAdviceLoading(true);
+    });
+
+    fetch("/api/health-advice", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        language: isChinese ? "zh-TW" : "en",
+        city,
+        displayCity: cityName(city, isChinese),
+        air: {
+          pm25,
+          pm10: selected?.pm10 || 0,
+          co: selected?.co || 0,
+          caqi,
+          temp: selected?.temp ?? "",
+          humidity: selected?.humidity ?? "",
+          windSpeed: selected?.windSpeed ?? "",
+          weather: weather.label,
+          weatherType: weather.type,
+        },
+        profile: healthProfile,
+      }),
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("AI advice unavailable");
+        return response.json();
+      })
+      .then((advice) => setAiHealthAdvice(advice))
+      .catch((error) => {
+        if (error.name !== "AbortError") {
+          setAiHealthAdvice(null);
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setAdviceLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [
+    caqi,
+    city,
+    healthProfile,
+    healthProfileKey,
+    isChinese,
+    loading,
+    selected?.co,
+    selected?.humidity,
+    selected?.pm10,
+    selected?.pm25,
+    selected?.temp,
+    selected?.windSpeed,
+    weather.label,
+    weather.type,
+  ]);
 
   const filteredRows = useMemo(() => {
     return rows.filter((item) => item.region === region);
   }, [rows, region]);
 
-  const caqi = caqiFrom(selected?.pm25 || 0, selected?.pm10 || 0, selected?.co || 0);
   const tomorrow = dailyPrediction[1] || dailyPrediction[0] || { pm25: 0, pm10: 0, co: 0 };
   const drift = Number(((tomorrow.pm25 || 0) - (selected?.pm25 || 0)).toFixed(1));
 
@@ -405,10 +480,14 @@ export default function RecordsPage() {
                   <div className="records-advice-copy">
                     <div className="records-advice-head">
                       <p className="records-advice-kicker">
-                        {t("Health Suggestion", "健康建議")}
+                        {healthAdvice.source === "ai"
+                          ? t("AI Health Suggestion", "AI 健康建議")
+                          : t("Health Suggestion", "健康建議")}
                       </p>
                       <span className="records-advice-pill">
-                        {healthAdvice.label}
+                        {adviceLoading
+                          ? t("Personalizing", "產生中")
+                          : healthAdvice.label}
                       </span>
                     </div>
 
