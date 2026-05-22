@@ -8,15 +8,15 @@ The app is built as a Next.js web app and designed to feel like a native phone i
 
 | Login | Home map | Home route card |
 | --- | --- | --- |
-| ![Login](docs/screenshots/01-login.jpg) | ![Home collapsed](docs/screenshots/03-home-collapsed.jpg) | ![Home expanded](docs/screenshots/04-home-expanded.jpg) |
+| ![Login](pmp25-pwa/docs/screenshots/01-login.jpg) | ![Home collapsed](pmp25-pwa/docs/screenshots/03-home-collapsed.jpg) | ![Home expanded](pmp25-pwa/docs/screenshots/04-home-expanded.jpg) |
 
 | Records | Summary | Setup |
 | --- | --- | --- |
-| ![Records](docs/screenshots/05-records-live.jpg) | ![Summary](docs/screenshots/08-summary.jpg) | ![Setup](docs/screenshots/09-setup.jpg) |
+| ![Records](pmp25-pwa/docs/screenshots/05-records-live.jpg) | ![Summary](pmp25-pwa/docs/screenshots/08-summary.jpg) | ![Setup](pmp25-pwa/docs/screenshots/09-setup.jpg) |
 
 | Reset password | Health profile |
 | --- | --- |
-| ![Reset password](docs/screenshots/02-reset-password.jpg) | ![Profile](docs/screenshots/10-profile.jpg) |
+| ![Reset password](pmp25-pwa/docs/screenshots/02-reset-password.jpg) | ![Profile](pmp25-pwa/docs/screenshots/10-profile.jpg) |
 
 ## Core Idea
 
