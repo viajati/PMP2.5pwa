@@ -22,21 +22,20 @@ import {
   saveHealthProfile,
   subscribeHealthProfile,
 } from "@/lib/firebaseData";
+import {
+  DEFAULT_HEALTH_PROFILE,
+  HEALTH_PROFILE_KEY,
+  cleanHealthProfile,
+} from "@/lib/healthProfile";
 
 const SETUP_KEY = "pmp25_setup_preferences";
-const PROFILE_KEY = "pmp25_health_profile";
 
 const defaultPrefs = {
   name: "",
   avatar: "",
 };
 
-const defaultProfile = {
-  ageLevel: 2,
-  conditions: ["dust", "sensitivity"],
-  activityLevel: 2,
-  fitnessLevel: 2,
-};
+const defaultProfile = DEFAULT_HEALTH_PROFILE;
 
 const ageLabels = ["<18", "18–35", "36–60", "60+"];
 
@@ -63,15 +62,6 @@ function loadJson(key, fallback) {
 function saveJson(key, value) {
   if (typeof window === "undefined") return;
   localStorage.setItem(key, JSON.stringify(value));
-}
-
-function cleanProfile(value = {}) {
-  return {
-    ageLevel: value.ageLevel ?? defaultProfile.ageLevel,
-    conditions: Array.isArray(value.conditions) ? value.conditions : defaultProfile.conditions,
-    activityLevel: value.activityLevel ?? defaultProfile.activityLevel,
-    fitnessLevel: value.fitnessLevel ?? defaultProfile.fitnessLevel,
-  };
 }
 
 function ageStory(level, chinese) {
@@ -197,7 +187,7 @@ export default function ProfilePage() {
       if (cancelled) return;
 
       setPrefs(loadJson(SETUP_KEY, defaultPrefs));
-      setProfile(loadJson(PROFILE_KEY, defaultProfile));
+      setProfile(cleanHealthProfile(loadJson(HEALTH_PROFILE_KEY, defaultProfile)));
     });
 
     return () => {
@@ -229,14 +219,14 @@ export default function ProfilePage() {
       user.uid,
       (cloudProfile) => {
         if (!cloudProfile) {
-          const localProfile = loadJson(PROFILE_KEY, defaultProfile);
+          const localProfile = cleanHealthProfile(loadJson(HEALTH_PROFILE_KEY, defaultProfile));
           saveHealthProfile(user.uid, localProfile).catch((error) => {
             console.warn("Unable to seed cloud health profile:", error);
           });
           return;
         }
 
-        setProfile(cleanProfile(cloudProfile));
+        setProfile(cleanHealthProfile(cloudProfile));
       },
       (error) => {
         console.warn("Unable to subscribe to cloud health profile:", error);
@@ -268,7 +258,7 @@ export default function ProfilePage() {
   }
 
   async function saveProfile() {
-    saveJson(PROFILE_KEY, profile);
+    saveJson(HEALTH_PROFILE_KEY, profile);
 
     try {
       if (firebaseReady && user?.uid) {

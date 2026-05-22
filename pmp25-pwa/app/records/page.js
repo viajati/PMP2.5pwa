@@ -22,8 +22,16 @@ import {
 } from "lucide-react";
 import OriginalBottomNav from "@/components/OriginalBottomNav";
 import { useAppPreferences } from "@/components/AppPreferencesProvider";
+import { useAuth } from "@/components/AuthProvider";
 import { CITY_COORDS, REGIONS } from "@/lib/cities";
 import { WEEKDAY_ZH, cityName, regionName, riskName, weatherName } from "@/lib/i18n";
+import { subscribeHealthProfile } from "@/lib/firebaseData";
+import { buildHealthAdvice } from "@/lib/healthAdvice";
+import {
+  DEFAULT_HEALTH_PROFILE,
+  cleanHealthProfile,
+  loadLocalHealthProfile,
+} from "@/lib/healthProfile";
 import {
   buildDailyPrediction,
   fetchAllCityAirQuality,
@@ -152,12 +160,14 @@ function labelForMode(mode) {
 
 export default function RecordsPage() {
   const { prefs, t } = useAppPreferences();
+  const { user, firebaseReady } = useAuth();
   const isChinese = prefs.chinese;
   const [mode, setMode] = useState("LIVE");
   const [region, setRegion] = useState("NORTH");
   const [city, setCity] = useState("Taipei City");
   const [rows, setRows] = useState(() => fallbackRows());
   const [loading, setLoading] = useState(true);
+  const [healthProfile, setHealthProfile] = useState(DEFAULT_HEALTH_PROFILE);
 
   const [startCity, setStartCity] = useState("Taipei City");
   const [endCity, setEndCity] = useState("Hsinchu City");
@@ -187,7 +197,10 @@ export default function RecordsPage() {
     let cancelled = false;
 
     queueMicrotask(() => {
-      if (!cancelled) loadData();
+      if (!cancelled) {
+        setHealthProfile(loadLocalHealthProfile());
+        loadData();
+      }
     });
 
     return () => {
@@ -195,6 +208,20 @@ export default function RecordsPage() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!firebaseReady || !user?.uid) return undefined;
+
+    return subscribeHealthProfile(
+      user.uid,
+      (cloudProfile) => {
+        if (cloudProfile) setHealthProfile(cleanHealthProfile(cloudProfile));
+      },
+      (error) => {
+        console.warn("Unable to load health profile for records:", error);
+      }
+    );
+  }, [firebaseReady, user?.uid]);
 
   useEffect(() => {
     async function refreshForecast() {
@@ -214,6 +241,14 @@ export default function RecordsPage() {
   const isNight = isNightHour(currentHour);
   const weather = getWeatherMeta(selected?.weatherCode, selected?.windSpeed);
   const WeatherIcon = weather.Icon;
+  const healthAdvice = buildHealthAdvice({
+    city: cityName(city, isChinese),
+    pm25: selected?.pm25 || 0,
+    weatherLabel: weatherName(weather.label, isChinese),
+    weatherType: weather.type,
+    profile: healthProfile,
+    chinese: isChinese,
+  });
 
   const filteredRows = useMemo(() => {
     return rows.filter((item) => item.region === region);
@@ -364,20 +399,33 @@ export default function RecordsPage() {
                 </div>
               </div>
 
-              <div className="records2-advice">
+              <div className={["records2-advice", "records-health-advice", `records-health-advice-${healthAdvice.level}`].join(" ")}>
                 <div className="app-notice-content">
                   <Sparkles size={22} className="app-notice-icon" />
-                  <p className="app-notice-text">
-                    {selected?.pm25 > 35
-                      ? t(
-                        `Safety: Air quality in ${cityName(city, false)} is ${selected?.pm25 ?? 0} µg/m³. Consider reducing prolonged outdoor activity.`,
-                        `安全提醒：${cityName(city, true)}的空氣品質為 ${selected?.pm25 ?? 0} µg/m³，建議減少長時間戶外活動。`
-                      )
-                      : t(
-                        `Safety: Air quality in ${cityName(city, false)} is ${selected?.pm25 ?? 0} µg/m³. Stay safe.`,
-                        `安全提醒：${cityName(city, true)}的空氣品質為 ${selected?.pm25 ?? 0} µg/m³，請持續留意。`
-                      )}
-                  </p>
+                  <div className="records-advice-copy">
+                    <div className="records-advice-head">
+                      <p className="records-advice-kicker">
+                        {t("Health Suggestion", "健康建議")}
+                      </p>
+                      <span className="records-advice-pill">
+                        {healthAdvice.label}
+                      </span>
+                    </div>
+
+                    <p className="records-advice-title">
+                      {healthAdvice.title}
+                    </p>
+
+                    <p className="app-notice-text records-advice-summary">
+                      {healthAdvice.summary}
+                    </p>
+
+                    <ul className="records-advice-list">
+                      {healthAdvice.actions.map((action) => (
+                        <li key={action}>{action}</li>
+                      ))}
+                    </ul>
+                  </div>
                 </div>
               </div>
 

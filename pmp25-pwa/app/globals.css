@@ -4,8 +4,10 @@
   --phone-width: 430px;
   --phone-preview-height: 932px;
   --bottom-nav-height: 92px;
-  --bottom-nav-offset: 20px;
-  --home-sheet-nav-gap: 22px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --bottom-nav-offset: max(10px, var(--safe-bottom));
+  --home-sheet-nav-gap: 10px;
   --home-control-sheet-gap: 18px;
 
   color-scheme: dark;
@@ -120,6 +122,7 @@ html,
 body {
   margin: 0;
   min-height: 100%;
+  height: 100%;
   background: var(--app-window-bg);
 }
 
@@ -151,6 +154,7 @@ button:disabled {
 
 .app-root {
   min-height: 100vh;
+  min-height: 100dvh;
   background: var(--app-window-bg);
 }
 
@@ -173,21 +177,25 @@ button:disabled {
 }
 
 .phone-frame-map {
-  height: 100svh;
-  min-height: 100svh;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 100vh;
+  min-height: 100dvh;
   overflow: hidden;
   background: #95d9e8;
 }
 
 .home-root {
-  height: 100svh;
-  max-height: 100svh;
+  height: 100vh;
+  height: 100dvh;
+  max-height: 100vh;
+  max-height: 100dvh;
   overflow: hidden;
   overscroll-behavior: none;
 }
 
 .app-page-body {
-  padding: 32px 20px 132px;
+  padding: calc(var(--safe-top) + 24px) 20px calc(var(--bottom-nav-height) + var(--bottom-nav-offset) + 40px);
 }
 
 .app-page-header,
@@ -570,7 +578,7 @@ button:disabled {
 .home-search-wrap {
   left: 18px;
   right: 18px;
-  top: 28px;
+  top: calc(var(--safe-top) + 14px);
   z-index: 950;
 }
 
@@ -615,7 +623,7 @@ button:disabled {
 .search-panel-compact {
   left: 18px;
   right: 18px;
-  top: 86px;
+  top: calc(var(--safe-top) + 72px);
   z-index: 960;
   max-height: 44vh;
   overflow: hidden;
@@ -704,7 +712,7 @@ button:disabled {
 .simulation-help-card {
   left: 18px;
   right: 18px;
-  top: 86px;
+  top: calc(var(--safe-top) + 72px);
   z-index: 930;
   border: 1px solid rgba(0, 210, 255, 0.28);
   border-radius: var(--radius-lg);
@@ -1708,6 +1716,123 @@ button:disabled {
   margin-top: 20px;
 }
 
+.records-health-advice {
+  position: relative;
+  overflow: hidden;
+  background:
+    linear-gradient(135deg, rgba(0, 210, 255, 0.1), transparent 46%),
+    var(--app-surface-soft);
+}
+
+.records-health-advice::after {
+  content: "";
+  position: absolute;
+  right: -34px;
+  bottom: -46px;
+  width: 128px;
+  height: 128px;
+  border-radius: var(--radius-round);
+  background: var(--advice-glow, rgba(0, 210, 255, 0.1));
+  pointer-events: none;
+}
+
+.records-health-advice-moderate {
+  --advice-glow: rgba(255, 204, 0, 0.12);
+}
+
+.records-health-advice-high {
+  --advice-glow: rgba(255, 59, 48, 0.12);
+}
+
+.records-health-advice > * {
+  position: relative;
+  z-index: 1;
+}
+
+.records-advice-copy {
+  min-width: 0;
+  width: 100%;
+}
+
+.records-advice-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.records-advice-kicker {
+  color: var(--text-soft);
+  font-size: 9px;
+  font-weight: 950;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.records-advice-pill {
+  flex-shrink: 0;
+  border-radius: var(--radius-round);
+  background: rgba(0, 210, 255, 0.12);
+  padding: 5px 9px;
+  color: var(--app-cyan);
+  font-size: 9px;
+  font-weight: 950;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.records-health-advice-moderate .records-advice-pill {
+  background: rgba(255, 204, 0, 0.14);
+  color: var(--app-yellow);
+}
+
+.records-health-advice-high .records-advice-pill {
+  background: rgba(255, 59, 48, 0.14);
+  color: var(--app-red);
+}
+
+.records-advice-title {
+  margin-top: 9px;
+  color: var(--text-main);
+  font-size: 15px;
+  font-weight: 950;
+  line-height: 1.22;
+}
+
+.records-advice-summary {
+  margin-top: 7px;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.records-advice-list {
+  display: grid;
+  gap: 7px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.records-advice-list li {
+  position: relative;
+  padding-left: 16px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1.38;
+}
+
+.records-advice-list li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.55em;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-round);
+  background: var(--app-cyan);
+}
+
 .records2-region-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -2212,7 +2337,7 @@ button:disabled {
   display: flex;
   flex: 0 0 clamp(330px, 50vh, 470px);
   flex-direction: column;
-  padding: 30px 30px 22px;
+  padding: calc(var(--safe-top) + 22px) 30px 22px;
 }
 
 .login-preference-bar {
@@ -2310,7 +2435,7 @@ button:disabled {
   margin: 0;
   border-radius: 38px 38px 0 0;
   background: var(--app-surface);
-  padding: 32px 32px max(30px, env(safe-area-inset-bottom));
+  padding: 32px 32px max(30px, calc(var(--safe-bottom) + 20px));
   color: var(--text-main);
   box-shadow: var(--shadow-panel);
 }
@@ -3188,12 +3313,12 @@ button:disabled {
 
   .phone-frame,
   .login-frame {
-    min-height: 100svh;
+    min-height: 100dvh;
   }
 
   .phone-frame-map {
-    height: 100svh;
-    min-height: 100svh;
+    height: 100dvh;
+    min-height: 100dvh;
   }
 }
 
