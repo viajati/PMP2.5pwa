@@ -17,6 +17,7 @@ import { CITY_COORDS, getNearestCity } from "@/lib/cities";
 import { fetchWeatherByCoords } from "@/lib/webWeather";
 import { useAppPreferences } from "@/components/AppPreferencesProvider";
 import { useAuth } from "@/components/AuthProvider";
+import WeatherBackground from "@/components/WeatherBackground";
 import { isFacebookLoginEnabled } from "@/lib/firebaseClient";
 import { isAppVerifiedUser } from "@/lib/authStatus";
 import { cityName as localizedCityName, localDateString } from "@/lib/i18n";
@@ -32,20 +33,11 @@ function getDateString(date, chinese) {
   return localDateString(date, chinese);
 }
 
-function weatherSceneType(type) {
-  if (type === "raining") return "rain";
-  if (type === "storm") return "storm";
-  if (type === "windy") return "windy";
-  if (type === "cloudy") return "cloudy";
-  if (type === "partly") return "partly";
-  return "sunny";
-}
-
 function authenticWeatherText(type, city, chinese = false) {
   const displayCity = localizedCityName(city, chinese);
 
   if (chinese) {
-    if (type === "raining") return `現在 ${displayCity}\n正在下雨。`;
+    if (type === "raining" || type === "rain") return `現在 ${displayCity}\n正在下雨。`;
     if (type === "cloudy") return `${displayCity} 的天空\n目前多雲。`;
     if (type === "partly") return `${displayCity} 現在\n晴時多雲。`;
     if (type === "windy") return `${displayCity} 現在\n風很大。`;
@@ -53,7 +45,7 @@ function authenticWeatherText(type, city, chinese = false) {
     return `現在 ${displayCity}\n陽光燦爛。`;
   }
 
-  if (type === "raining") return `It's raining\nin ${displayCity}\nright now.`;
+  if (type === "raining" || type === "rain") return `It's raining\nin ${displayCity}\nright now.`;
   if (type === "cloudy") return `The sky is\ncloudy in ${displayCity}.`;
   if (type === "partly") return `It's partly\ncloudy in ${displayCity}.`;
   if (type === "windy") return `It's quite\nwindy in ${displayCity}.`;
@@ -85,7 +77,11 @@ export default function LoginPage() {
   const [submitting, setSubmitting] = useState(false);
 
   const [cityName, setCityName] = useState("Hsinchu City");
-  const [weatherType, setWeatherType] = useState("sunny");
+  const [localWeather, setLocalWeather] = useState({
+    type: "sunny",
+    weatherCode: 1,
+    windSpeed: 0,
+  });
 
   useEffect(() => {
     const firstTick = window.setTimeout(() => {
@@ -105,10 +101,14 @@ export default function LoginPage() {
       try {
         const weather = await fetchWeatherByCoords(latitude, longitude);
         setCityName(city);
-        setWeatherType(weather.type);
+        setLocalWeather(weather);
       } catch {
         setCityName(city);
-        setWeatherType("sunny");
+        setLocalWeather({
+          type: "sunny",
+          weatherCode: 1,
+          windSpeed: 0,
+        });
       }
     }
 
@@ -157,12 +157,9 @@ export default function LoginPage() {
   }, [authReady, router, user]);
 
   const displayCityName = localizedCityName(cityName, isChinese);
+  const weatherType = localWeather?.type || "sunny";
   const weatherLines = authenticWeatherText(weatherType, cityName, isChinese).split("\n");
-  const weatherTime =
-    currentTime && (currentTime.getHours() >= 18 || currentTime.getHours() < 6)
-      ? "night"
-      : "day";
-  const weatherSceneClass = `login-weather-scene records2-weather-${weatherSceneType(weatherType)}-${weatherTime}`;
+  const weatherHour = currentTime?.getHours();
 
   async function handleAuthSubmit(event) {
     event.preventDefault();
@@ -251,7 +248,7 @@ export default function LoginPage() {
   return (
     <main className="app-root">
       <div className="login-frame">
-        <div className={weatherSceneClass} />
+        <WeatherBackground weather={localWeather} hour={weatherHour} />
         <div className="login-content">
           <section className="login-hero">
             <div className="login-preference-bar">
