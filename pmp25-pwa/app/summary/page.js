@@ -2,15 +2,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
-  Activity,
-  BarChart3,
-  CalendarDays,
   ChevronDown,
   ChevronUp,
-  Footprints,
-  Gauge,
   RefreshCw,
-  ShieldAlert,
+  Share2,
+  X,
 } from "lucide-react";
 import OriginalBottomNav from "@/components/OriginalBottomNav";
 import { useAppPreferences } from "@/components/AppPreferencesProvider";
@@ -20,15 +16,16 @@ import { loadUserRouteHistory } from "@/lib/firebaseData";
 import { routeDateId } from "@/lib/trackStorage";
 import {
   cityName,
-  riskName,
-  routeSourceName,
   summaryDate,
   summaryDayName,
-  transportName,
 } from "@/lib/i18n";
 
-function safeRisk(day) {
-  return day?.risk || { label: "LOW", color: "#34C759" };
+function pm25Condition(avg = 0, chinese = false) {
+  if (avg === 0) return { label: chinese ? "無數據" : "NO DATA", color: "#8E8E93" };
+  if (avg <= 15.4) return { label: chinese ? "優良" : "EXCELLENT", color: "#34C759" };
+  if (avg <= 35.4) return { label: chinese ? "普通" : "FAIR", color: "#FFCC00" };
+  if (avg <= 54.4) return { label: chinese ? "不佳" : "POOR", color: "#FF9500" };
+  return { label: chinese ? "危害" : "HAZARDOUS", color: "#FF3B30" };
 }
 
 export default function SummaryPage() {
@@ -45,6 +42,7 @@ export default function SummaryPage() {
 
   const [expandedDay, setExpandedDay] = useState(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
 
   const refreshSummary = useCallback(async () => {
     setSummaryLoading(true);
@@ -91,110 +89,76 @@ export default function SummaryPage() {
     risk: { label: "LOW", color: "#34C759" },
   };
 
-  const maxExposure = Math.max(
-    1,
-    ...summary.days.map((day) => day.exposureLoad || 0)
-  );
+  const todayMeta = pm25Condition(today.avgPm25, isChinese);
+  const todayLocation = today.cityPath?.length > 0
+    ? cityName(today.cityPath[today.cityPath.length - 1], isChinese)
+    : t("Phone GPS", "手機 GPS");
 
   return (
     <main className="app-root">
-      <div className="phone-frame relative">
-        <section className="app-page-body">
-          <div className="app-page-header">
-            <div>
-              <p className="screen-kicker">{t("Statistics", "統計")}</p>
-              <h1 className="app-page-title">{t("Summary", "總覽")}</h1>
-            </div>
-
-            <button
-              onClick={refreshSummary}
-              className="app-icon-button"
-              title={t("Refresh summary", "重新整理總覽")}
-            >
-              <RefreshCw
-                size={22}
-                strokeWidth={3}
-                className={summaryLoading ? "animate-spin" : ""}
-              />
-            </button>
-          </div>
-
-          <div className="summary-hero mt-7">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="summary-hero-label">{t("Today's Exposure Load", "今日暴露負荷")}</p>
-
-                <p className="summary-hero-value">
-                  {today.exposureLoad}
-                  <span className="summary-hero-unit">{t("score", "分")}</span>
-                </p>
-
-                <p className="summary-hero-meta">
-                  {today.km} km · {today.minutes} {t("min", "分鐘")} · {today.segments} {t("segments", "路段")}
-                </p>
+      <div className="phone-frame relative summary-native-frame">
+        <section className="summary-native-scroll">
+          <div className="summary-today-card">
+            <div className="summary-today-gradient">
+              <div className="summary-today-header">
+                <p className="summary-today-label">{t("TODAY'S STATUS", "今日狀態")}</p>
+                <div className="summary-today-actions">
+                  <button
+                    type="button"
+                    onClick={() => setShowShareModal(true)}
+                    title={t("Share telemetry", "分享數據")}
+                  >
+                    <Share2 size={24} strokeWidth={2.5} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={refreshSummary}
+                    title={t("Refresh summary", "重新整理總覽")}
+                  >
+                    <RefreshCw
+                      size={24}
+                      strokeWidth={2.5}
+                      className={summaryLoading ? "animate-spin" : ""}
+                    />
+                  </button>
+                </div>
               </div>
 
-              <span
-                className="summary-risk-chip mt-1"
-                style={{ backgroundColor: safeRisk(today).color }}
-              >
-                {riskName(safeRisk(today).label, isChinese)}
-              </span>
+              <div className="summary-today-main">
+                <div>
+                  <p className="summary-today-number">
+                    {today.km > 0 && today.km < 0.1 ? today.km.toFixed(2) : today.km.toFixed(1)}
+                  </p>
+                  <p className="summary-today-unit">{t("KM WALKED", "步行公里")}</p>
+                </div>
+
+                <span className="summary-today-divider" />
+
+                <div>
+                  <p className="summary-today-number">{today.avgPm25.toFixed(1)}</p>
+                  <p className="summary-today-unit">{t("AVG PM2.5", "平均 PM2.5")}</p>
+                </div>
+              </div>
+
+              <div className="summary-today-footer">
+                <p className="summary-today-rating">
+                  {isChinese ? `狀況：${todayMeta.label}` : `CONDITION: ${todayMeta.label}`}
+                </p>
+                <p className="summary-today-location">
+                  {today.isPersonal ? t("PERSONAL JOURNEY", "個人足跡") : todayLocation}
+                </p>
+              </div>
             </div>
           </div>
 
-          <div className="summary-mini-grid mt-5">
-            <div className="summary-mini-card">
-              <Footprints className="forecast-icon-accent" size={21} strokeWidth={3} />
-              <p className="summary-mini-label mt-4">{t("Weekly Distance", "每週距離")}</p>
-              <p className="summary-mini-value">
-                {summary.totalKm}
-                <span className="summary-history-unit">KM</span>
-              </p>
-            </div>
-
-            <div className="summary-mini-card">
-              <Gauge className="forecast-icon-accent" size={21} strokeWidth={3} />
-              <p className="summary-mini-label mt-4">{t("Weekly Load", "每週負荷")}</p>
-              <p className="summary-mini-value">
-                {summary.totalExposure}
-                <span className="summary-history-unit">{t("score", "分")}</span>
-              </p>
-            </div>
-
-            <div className="summary-mini-card">
-              <Activity className="forecast-icon-accent" size={21} strokeWidth={3} />
-              <p className="summary-mini-label mt-4">{t("Avg PM2.5", "平均 PM2.5")}</p>
-              <p className="summary-mini-value">
-                {summary.avgPm25}
-                <span className="summary-history-unit">µg/m³</span>
-              </p>
-            </div>
-
-            <div className="summary-mini-card">
-              <CalendarDays className="forecast-icon-accent" size={21} strokeWidth={3} />
-              <p className="summary-mini-label mt-4">{t("Active Days", "活動天數")}</p>
-              <p className="summary-mini-value">
-                {summary.activeDays}
-                <span className="summary-history-unit">/7</span>
-              </p>
-            </div>
+          <div className="summary-native-heading-row">
+            <h2 className="summary-native-section-title">{t("HISTORY LOG (7D)", "歷史紀錄 (7天)")}</h2>
+            <p className="summary-action-hint">{t("Tap to expand", "點擊展開")}</p>
           </div>
 
-          <div className="mt-7 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <BarChart3 className="forecast-icon-accent" size={22} strokeWidth={3} />
-              <h2 className="app-section-title">{t("History Log", "歷史紀錄")}</h2>
-            </div>
-
-            <p className="summary-action-hint">
-              {t("Tap to expand", "點擊展開")}
-            </p>
-          </div>
-
-          <div className="mt-4 space-y-3">
+          <div className="summary-native-list">
             {summary.days.map((day) => {
-              const risk = safeRisk(day);
+              const condition = pm25Condition(day.avgPm25, isChinese);
               const expanded = expandedDay === day.id;
 
               return (
@@ -202,7 +166,7 @@ export default function SummaryPage() {
                   key={day.id}
                   type="button"
                   onClick={() => setExpandedDay(expanded ? null : day.id)}
-                  className="summary-history-card w-full text-left"
+                  className="summary-history-card summary-native-day-card"
                 >
                   <div className="summary-history-top">
                     <div className="min-w-0">
@@ -210,90 +174,72 @@ export default function SummaryPage() {
                         {summaryDayName(day, isChinese)}
                       </p>
                       <p className="summary-history-sub">
-                        {summaryDate(day, isChinese)} · {day.segments} {t("segments", "路段")} · {day.hits} {t("GPS points", "GPS 點")}
+                        {summaryDate(day, isChinese)}
                       </p>
                     </div>
 
-                    <div className="shrink-0 text-right">
-                      <p className="summary-history-value">
-                        {day.exposureLoad}
-                        <span className="summary-history-unit">{t("score", "分")}</span>
+                    <div className="summary-native-day-summary">
+                      <p className="summary-native-day-km">
+                        {day.km > 0 && day.km < 0.1 ? day.km.toFixed(2) : day.km.toFixed(1)} km
                       </p>
 
-                      <div className="mt-2 flex items-center justify-end gap-2">
-                        <span
-                          className="summary-risk-chip"
-                          style={{ backgroundColor: risk.color }}
-                        >
-                          {riskName(risk.label, isChinese)}
-                        </span>
+                      <span className="summary-status-dot" style={{ backgroundColor: condition.color }} />
 
-                        {expanded ? (
-                          <ChevronUp size={16} className="summary-expand-icon" />
-                        ) : (
-                          <ChevronDown size={16} className="summary-expand-icon" />
-                        )}
-                      </div>
+                      <p className="summary-native-day-avg" style={{ color: condition.color }}>
+                        {day.avgPm25.toFixed(1)}
+                      </p>
+
+                      {expanded ? (
+                        <ChevronUp size={20} className="summary-expand-icon" />
+                      ) : (
+                        <ChevronDown size={20} className="summary-expand-icon" />
+                      )}
                     </div>
-                  </div>
-
-                  <div className="summary-progress-track">
-                    <div
-                      className="summary-progress-fill"
-                      style={{
-                        width: `${Math.min(
-                          100,
-                          (day.exposureLoad / maxExposure) * 100
-                        )}%`,
-                        backgroundColor: risk.color,
-                      }}
-                    />
                   </div>
 
                   {expanded && (
-                    <div className="summary-expanded-box">
-                      <div className="summary-expanded-grid-4">
-                        <div>
-                          <p className="summary-expanded-label">{t("Distance", "距離")}</p>
-                          <p className="summary-expanded-value-small">
-                            {day.km} km
-                          </p>
-                        </div>
-
-                        <div>
-                          <p className="summary-expanded-label">{t("Avg", "平均")}</p>
-                          <p className="summary-expanded-value-small">
-                            {day.avgPm25}
-                          </p>
-                        </div>
-
-                        <div>
-                          <p className="summary-expanded-label">{t("Peak", "最高")}</p>
-                          <p className="summary-expanded-value-small">
-                            {day.peak}
-                          </p>
-                        </div>
-
-                        <div>
-                          <p className="summary-expanded-label">{t("Low", "最低")}</p>
-                          <p className="summary-expanded-value-small">
-                            {day.low}
-                          </p>
+                    <div className="summary-native-details">
+                      <div className="summary-native-chart-section">
+                        <p className="summary-native-chart-title">{t("INTERVAL BREAKDOWN (6H)", "時段分析 (6小時)")}</p>
+                        <div className="summary-native-chart-row">
+                          {(day.intervals || []).map((interval) => {
+                            const barMeta = pm25Condition(interval.avgPm25, isChinese);
+                            return (
+                              <div key={interval.label} className="summary-native-bar-container">
+                                <div className="summary-native-bar-track">
+                                  <div
+                                    className="summary-native-bar-fill"
+                                    style={{
+                                      height: `${Math.max(5, Math.min(100, ((interval.avgPm25 || 0) / 60) * 100))}%`,
+                                      backgroundColor: barMeta.color,
+                                    }}
+                                  />
+                                </div>
+                                <p className="summary-native-bar-label">{interval.label}</p>
+                                <p className="summary-native-bar-value">{interval.avgPm25 > 0 ? interval.avgPm25.toFixed(1) : "-"}</p>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
 
-                      <div className="mt-3 flex items-center justify-between">
-                        <p className="summary-inline-meta">
-                          {day.hits} {t("GPS points", "GPS 點")} · {day.minutes} {t("min", "分鐘")}
-                        </p>
-
-                        <span className="summary-source-chip">
-                          {day.routeSource
-                            ? `${routeSourceName(day.routeSource, isChinese)} · ${transportName(day.routeMode, isChinese)}`
-                            : day.isPersonal
-                              ? t("phone GPS", "手機 GPS")
-                              : t("no data", "無資料")}
-                        </span>
+                      <div className="summary-native-detail-grid">
+                        <div>
+                          <p className="summary-expanded-label">{t("Peak", "最高值")}</p>
+                          <p className="summary-expanded-value-small">{day.peak.toFixed(1)}</p>
+                        </div>
+                        <div>
+                          <p className="summary-expanded-label">{t("Lowest", "最低值")}</p>
+                          <p className="summary-expanded-value-small">{day.low.toFixed(1)}</p>
+                        </div>
+                        <div>
+                          <p className="summary-expanded-label">{t("Steps (est)", "步數 (預估)")}</p>
+                          <p className="summary-expanded-value-small">{(day.km * 1350).toFixed(0)}</p>
+                        </div>
+                        <div>
+                          <p className="summary-expanded-label">{t("Samples", "樣本數")}</p>
+                          <p className="summary-expanded-value-small">{day.hits}</p>
+                        </div>
                       </div>
 
                       <p className="summary-route-path">
@@ -309,49 +255,8 @@ export default function SummaryPage() {
                             ? t("Distance and duration use the road route calculated from real GPS points.", "距離與時間使用真實 GPS 點計算出的道路路線。")
                           : day.isPersonal
                             ? t("Duration is estimated from distance because timestamp gaps were unavailable.", "因缺少可用時間戳，時間由距離估算。")
-                            : t("Allow GPS on Home and move with the phone to build this history automatically.", "在首頁允許 GPS 並帶著手機移動後，這裡會自動建立歷史。")}
+                          : t("Allow GPS on Home and move with the phone to build this history automatically.", "在首頁允許 GPS 並帶著手機移動後，這裡會自動建立歷史。")}
                       </p>
-
-                      <div className="interval-box">
-                        <div className="interval-title-row">
-                          <p className="interval-title">{t("Interval breakdown", "時段分析")}</p>
-                          <p className="interval-subtitle">
-                            PM2.5 + load
-                          </p>
-                        </div>
-
-                        {(day.intervals || []).map((interval) => {
-                          const maxInterval = Math.max(
-                            1,
-                            ...(day.intervals || []).map(
-                              (item) => item.exposureLoad || 0
-                            )
-                          );
-
-                          return (
-                            <div key={interval.label} className="interval-row">
-                              <p className="interval-label">{interval.label}</p>
-
-                              <div className="interval-track">
-                                <div
-                                  className="interval-fill"
-                                  style={{
-                                    width: `${Math.min(
-                                      100,
-                                      (interval.exposureLoad / maxInterval) * 100
-                                    )}%`,
-                                    backgroundColor: risk.color,
-                                  }}
-                                />
-                              </div>
-
-                              <p className="interval-value">
-                                {interval.exposureLoad}
-                              </p>
-                            </div>
-                          );
-                        })}
-                      </div>
                     </div>
                   )}
                 </button>
@@ -359,18 +264,48 @@ export default function SummaryPage() {
             })}
           </div>
 
-          <div className="app-notice mt-5">
-            <div className="app-notice-content">
-              <ShieldAlert className="app-notice-icon" size={22} />
-              <p className="app-notice-text">
-                {t(
-                  "Summary uses real phone GPS only. Home simulation stays separate, and road routing is used only to turn those GPS points into a realistic path. Load is time-based: PM2.5 x route hours x transport exposure rate.",
-                  "總覽只使用真實手機 GPS。首頁模擬會分開保存，道路規劃只用來把 GPS 點轉成較貼近實際道路的路徑。負荷以時間計算：PM2.5 × 路線小時 × 交通暴露率。"
-                )}
-              </p>
-            </div>
+          <div className="summary-weekly-box">
+            <p className="summary-weekly-text">
+              {t("WEEKLY TOTAL", "每週總計")}: {summary.totalKm.toFixed(2)} KM | AVG {summary.avgPm25.toFixed(1)} PM2.5
+            </p>
           </div>
         </section>
+
+        {showShareModal && (
+          <div className="summary-share-modal" role="dialog" aria-modal="true">
+            <div className="summary-share-card">
+              <button
+                type="button"
+                onClick={() => setShowShareModal(false)}
+                className="summary-share-close"
+                title={t("Close", "關閉")}
+              >
+                <X size={18} strokeWidth={3} />
+              </button>
+              <p className="summary-share-title">{t("SHARE TELEMETRY", "分享數據紀錄")}</p>
+              <p className="summary-share-subtitle">{t("Personal environmental summary", "個人環境數據摘要")}</p>
+              <div className="summary-faux-qr" aria-label={JSON.stringify({ km: today.km, avg: today.avgPm25 })}>
+                {Array.from({ length: 49 }).map((_, index) => (
+                  <span
+                    key={index}
+                    className={(index * 7 + Math.round(today.km * 10) + Math.round(today.avgPm25)) % 3 === 0 ? "summary-qr-cell-on" : ""}
+                  />
+                ))}
+              </div>
+              <div className="summary-share-stats">
+                <div>
+                  <p>{today.km.toFixed(1)}</p>
+                  <span>KM</span>
+                </div>
+                <div>
+                  <p>{today.avgPm25.toFixed(0)}</p>
+                  <span>PM2.5</span>
+                </div>
+              </div>
+              <p className="summary-share-footer">BLUE SKY TELEMETRY · SYNC V1.0</p>
+            </div>
+          </div>
+        )}
 
         <OriginalBottomNav />
       </div>

@@ -21,10 +21,11 @@ import {
   Wind,
 } from "lucide-react";
 import OriginalBottomNav from "@/components/OriginalBottomNav";
+import WeatherBackground from "@/components/WeatherBackground";
 import { useAppPreferences } from "@/components/AppPreferencesProvider";
 import { useAuth } from "@/components/AuthProvider";
 import { CITY_COORDS, REGIONS } from "@/lib/cities";
-import { WEEKDAY_ZH, cityName, regionName, riskName, weatherName } from "@/lib/i18n";
+import { WEEKDAY_ZH, cityName, regionName, weatherName } from "@/lib/i18n";
 import { subscribeHealthProfile } from "@/lib/firebaseData";
 import { buildHealthAdvice } from "@/lib/healthAdvice";
 import {
@@ -51,13 +52,6 @@ function pmColor(value) {
   return "#FF3B30";
 }
 
-function riskLabel(value) {
-  if (value <= 15.4) return "GOOD";
-  if (value <= 35.4) return "MODERATE";
-  if (value <= 54.4) return "POOR";
-  return "HIGH";
-}
-
 function caqiFrom(pm25, pm10, co) {
   const pm25Score = Math.min(100, (pm25 / 75) * 100);
   const pm10Score = Math.min(100, (pm10 / 150) * 100);
@@ -76,18 +70,6 @@ function getWeatherMeta(code, windSpeed = 0) {
   return { Icon: Sun, label: "sunny", type: "sunny" };
 }
 
-function heroClass(type, isNight = false) {
-  const time = isNight ? "night" : "day";
-
-  if (type === "rain") return `records2-weather-hero records2-weather-rain-${time}`;
-  if (type === "storm") return `records2-weather-hero records2-weather-storm-${time}`;
-  if (type === "cloudy") return `records2-weather-hero records2-weather-cloudy-${time}`;
-  if (type === "partly") return `records2-weather-hero records2-weather-partly-${time}`;
-  if (type === "windy") return `records2-weather-hero records2-weather-windy-${time}`;
-
-  return `records2-weather-hero records2-weather-sunny-${time}`;
-}
-
 function getHourFromFetchTime(timeValue) {
   if (!timeValue || typeof timeValue !== "string") {
     return new Date().getHours();
@@ -102,10 +84,6 @@ function getHourFromFetchTime(timeValue) {
   const hour = Number(timePart?.split(":")?.[0]);
 
   return Number.isFinite(hour) ? hour : new Date().getHours();
-}
-
-function isNightHour(hour) {
-  return hour < 6 || hour >= 18;
 }
 
 function regionFor(city) {
@@ -152,10 +130,31 @@ function exposureMultiplierFor(mode) {
   return 1;
 }
 
-function labelForMode(mode) {
-  if (mode === "walk") return "Walk";
-  if (mode === "bike") return "Bike";
-  return "Car";
+function normalizeWeatherBackgroundType(type) {
+  if (type === "rain") return "raining";
+  return type;
+}
+
+function RingGauge({ value, label, subLabel, color = "#FFCC00" }) {
+  const clamped = Math.max(1, Math.min(100, Number(value) || 0));
+
+  return (
+    <div className="forecast-native-ring-item">
+      <div
+        className="forecast-native-ring"
+        style={{
+          "--gauge-degrees": `${clamped * 3.6}deg`,
+          "--gauge-color": color,
+        }}
+      >
+        <div className="forecast-native-ring-center">
+          <p>{Math.round(clamped)}%</p>
+          <span>{subLabel}</span>
+        </div>
+      </div>
+      <p className="forecast-native-ring-label">{label}</p>
+    </div>
+  );
 }
 
 export default function RecordsPage() {
@@ -240,10 +239,16 @@ export default function RecordsPage() {
 
   const selected = rows.find((item) => item.county === city) || rows[0];
   const currentHour = getHourFromFetchTime(selected?.time);
-  const isNight = isNightHour(currentHour);
   const weather = getWeatherMeta(selected?.weatherCode, selected?.windSpeed);
   const WeatherIcon = weather.Icon;
   const caqi = caqiFrom(selected?.pm25 || 0, selected?.pm10 || 0, selected?.co || 0);
+  const liveWeather = {
+    type: normalizeWeatherBackgroundType(weather.type),
+    weatherCode: selected?.weatherCode || 0,
+    windSpeed: selected?.windSpeed || 0,
+  };
+  const pollutionScore = Math.max(0, Math.min(100, 100 - ((selected?.pm25 || 0) * 1.5)));
+  const currentTemp = Number(selected?.temp);
   const healthProfileKey = JSON.stringify(healthProfile);
   const fallbackHealthAdvice = useMemo(() => (
     buildHealthAdvice({
@@ -332,6 +337,18 @@ export default function RecordsPage() {
 
   const tomorrow = dailyPrediction[1] || dailyPrediction[0] || { pm25: 0, pm10: 0, co: 0 };
   const drift = Number(((tomorrow.pm25 || 0) - (selected?.pm25 || 0)).toFixed(1));
+  const actualScore = Math.max(1, Math.min(100, 100 - ((selected?.pm25 || 0) * 1.1)));
+  const potentialScore = Math.max(1, Math.min(100, 100 - ((tomorrow.pm25 || selected?.pm25 || 0) * 1.1)));
+  const forecastTrendValues = [
+    selected?.pm25 || 0,
+    ...dailyPrediction.slice(0, 6).map((day) => day.pm25 || 0),
+  ];
+  const forecastMax = Math.max(1, ...forecastTrendValues) * 1.6;
+  const forecastLinePoints = forecastTrendValues.map((value, index) => {
+    const x = 15 + (index / 6) * 300;
+    const y = 15 + (100 - ((value / forecastMax) * 100));
+    return `${x},${y}`;
+  }).join(" ");
 
   const routeKm = distanceBetween(startCity, endCity);
   const routeMinutes = routeMinutesFor(transport, routeKm);
@@ -362,6 +379,14 @@ export default function RecordsPage() {
     SOUTH: regionName("SOUTH", isChinese),
     EAST: regionName("EAST", isChinese),
   };
+  const cityOptions = Object.keys(CITY_COORDS);
+  const globalAdviceText = mode === "LIVE"
+    ? healthAdvice.summary
+    : mode === "FORECAST"
+      ? `${t("Trend", "趨勢")}：${drift > 0 ? t("PM2.5 may increase tomorrow.", "明天 PM2.5 可能上升。") : t("Stable or lower PM2.5 expected tomorrow.", "明天 PM2.5 預期持平或下降。")}`
+      : routeData
+        ? `${cityName(startCity, isChinese)} → ${cityName(endCity, isChinese)} · ${displayedDistance.toFixed(1)} KM · ${Math.round(displayedDuration)} ${t("min", "分鐘")} · ${displayedLoad} ${t("score", "分")}`
+        : t("Pick origin, destination, and transport to optimize exposure along the route.", "選擇起點、目的地與交通方式來優化路線暴露。");
 
   function forecastDayLabel(day) {
     if (!isChinese) return day.day;
@@ -408,106 +433,97 @@ export default function RecordsPage() {
   return (
     <main className="app-root">
       <div className="phone-frame relative records2-page">
-        <section className="app-page-body records-page-body">
-          <div className="app-page-header">
-            <div>
-              <p className="screen-kicker">{t("Archive", "檔案")}</p>
-              <h1 className="app-page-title">{t("Records", "紀錄")}</h1>
+        <section className={[
+          "records-page-body",
+          "records-native-body",
+          mode !== "LIVE" ? "records-native-body-standard" : "",
+        ].join(" ")}>
+          {mode === "LIVE" && (
+            <div className="records-weather-header">
+              <WeatherBackground weather={liveWeather} hour={currentHour} />
+              <div className="records-weather-fade" />
+              <button
+                onClick={loadData}
+                className="records-native-refresh"
+                title={t("Refresh records", "重新整理紀錄")}
+              >
+                <RefreshCw size={20} strokeWidth={3} className={loading ? "animate-spin" : ""} />
+              </button>
+
+              <div className="records-weather-content">
+                <p className="records-weather-city">
+                  {cityName(city, isChinese).toUpperCase()}
+                </p>
+
+                <p className="records-weather-temp">
+                  {Number.isFinite(currentTemp) ? Math.round(currentTemp) : 0}°
+                </p>
+
+                <div className="records-weather-condition">
+                  <WeatherIcon size={24} strokeWidth={2.8} />
+                  <span>{weather.type === "sunny" ? t("Good", "良好") : weatherName(weather.label, isChinese)}</span>
+                </div>
+
+                <div className="records-weather-bubbles">
+                  <div className="records-weather-bubble records-weather-bubble-pollution">
+                    <p>{t("Pollution", "污染")}</p>
+                    <strong>{Math.round(pollutionScore)}%</strong>
+                  </div>
+
+                  <div className="records-weather-bubble records-weather-bubble-wind">
+                    <p>{t("Wind", "風速")}</p>
+                    <strong>{selected?.windSpeed ?? 0}km</strong>
+                  </div>
+
+                  <div className="records-weather-bubble records-weather-bubble-humidity">
+                    <p>{t("Humidity", "濕度")}</p>
+                    <strong>{selected?.humidity ?? 0}%</strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className={[
+            "records-native-content",
+            mode === "LIVE" ? "records-native-content-live" : "",
+          ].join(" ")}>
+            <div className="records2-tabs">
+              {tabs.map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setMode(tab)}
+                  className={[
+                    "records2-tab",
+                    mode === tab ? "records2-tab-active" : "",
+                  ].join(" ")}
+                >
+                  {tabLabel[tab]}
+                </button>
+              ))}
             </div>
 
-            <button
-              onClick={loadData}
-              className="app-icon-button"
-              title={t("Refresh records", "重新整理紀錄")}
-            >
-              <RefreshCw size={22} strokeWidth={3} className={loading ? "animate-spin" : ""} />
-            </button>
-          </div>
+            <div className={["records2-advice", "records-native-ai", mode === "LIVE" ? `records-health-advice-${healthAdvice.level}` : ""].join(" ")}>
+              <span className="records-native-ai-glow" />
+              {mode === "PLANNER" ? (
+                <Route size={16} className="app-notice-icon" />
+              ) : (
+                <Sparkles size={16} className="app-notice-icon" />
+              )}
+              <p className="records-native-ai-text">
+                {adviceLoading && mode === "LIVE" ? t("Personalizing atmosphere...", "正在產生個人化空氣建議...") : globalAdviceText}
+              </p>
+            </div>
 
-          <div className="records2-tabs">
-            {tabs.map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setMode(tab)}
-                className={[
-                  "records2-tab",
-                  mode === tab ? "records2-tab-active" : "",
-                ].join(" ")}
-              >
-                {tabLabel[tab]}
-              </button>
-            ))}
-          </div>
-
-          {mode === "LIVE" && (
-            <>
-              <div className={heroClass(weather.type, isNight)}>
-                <p className="records2-weather-city">
-                  {cityName(city, isChinese)}
-                </p>
-
-                <p className="records2-weather-temp">
-                  {selected?.pm25 ?? "-"}
-                  <span className="records2-weather-unit">PM2.5</span>
-                </p>
-
-                <div className="records2-weather-condition">
-                  <WeatherIcon size={28} strokeWidth={3} />
-                  <span>{weatherName(weather.label, isChinese)} · CAQI {caqi}%</span>
+            {loading ? (
+              <div className="records-native-loader">
+                <div className="refined-loader-ring">
+                  <span />
                 </div>
-
-                <div className="records2-bubble-grid">
-                  <div className="records2-bubble">
-                    <p className="records2-bubble-label">{t("Temp", "氣溫")}</p>
-                    <p className="records2-bubble-value">{selected?.temp ?? "-"}°</p>
-                  </div>
-
-                  <div className="records2-bubble">
-                    <p className="records2-bubble-label">{t("Wind", "風速")}</p>
-                    <p className="records2-bubble-value">{selected?.windSpeed ?? "-"}km</p>
-                  </div>
-
-                  <div className="records2-bubble">
-                    <p className="records2-bubble-label">{t("Humidity", "濕度")}</p>
-                    <p className="records2-bubble-value">{selected?.humidity ?? "-"}%</p>
-                  </div>
-                </div>
+                <p>{t("Fetching Atmosphere...", "正在取得空氣資料...").toUpperCase()}</p>
               </div>
-
-              <div className={["records2-advice", "records-health-advice", `records-health-advice-${healthAdvice.level}`].join(" ")}>
-                <div className="app-notice-content">
-                  <Sparkles size={22} className="app-notice-icon" />
-                  <div className="records-advice-copy">
-                    <div className="records-advice-head">
-                      <p className="records-advice-kicker">
-                        {healthAdvice.source === "ai"
-                          ? t("AI Health Suggestion", "AI 健康建議")
-                          : t("Health Suggestion", "健康建議")}
-                      </p>
-                      <span className="records-advice-pill">
-                        {adviceLoading
-                          ? t("Personalizing", "產生中")
-                          : healthAdvice.label}
-                      </span>
-                    </div>
-
-                    <p className="records-advice-title">
-                      {healthAdvice.title}
-                    </p>
-
-                    <p className="app-notice-text records-advice-summary">
-                      {healthAdvice.summary}
-                    </p>
-
-                    <ul className="records-advice-list">
-                      {healthAdvice.actions.map((action) => (
-                        <li key={action}>{action}</li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-              </div>
-
+            ) : mode === "LIVE" && (
+              <>
               <div className="records2-region-grid">
                 {regions.map((item) => (
                   <button
@@ -576,51 +592,51 @@ export default function RecordsPage() {
             </>
           )}
 
-          {mode === "PLANNER" && (
+          {!loading && mode === "PLANNER" && (
             <>
-              <div className="records2-advice">
-                <div className="app-notice-content">
-                  <Route size={22} className="app-notice-icon" />
-                  <p className="app-notice-text">
-                    {t(
-                      "Calculate Route gets road distance and duration, then sums exposure by time: PM2.5 × travel hours × transport exposure rate.",
-                      "計算路線會取得道路距離與時間，再依時間加總暴露：PM2.5 × 旅行小時 × 交通暴露率。"
-                    )}
-                  </p>
-                </div>
-              </div>
-
-              <div className="records-form-grid">
-                <div className="records2-card">
+              <div className="records-form-grid records-city-picker-grid">
+                <div className="records2-card records-city-picker-card">
                   <p className="records2-label">{t("Origin", "起點")}</p>
-                  <select
-                    value={startCity}
-                    onChange={(e) => {
-                      setStartCity(e.target.value);
-                      setRouteData(null);
-                    }}
-                    className="records2-select"
-                  >
-                    {Object.keys(CITY_COORDS).map((item) => (
-                      <option key={item} value={item}>{cityName(item, isChinese)}</option>
+                  <div className="records-city-pick-scroll">
+                    {cityOptions.map((item) => (
+                      <button
+                        key={item}
+                        type="button"
+                        onClick={() => {
+                          setStartCity(item);
+                          setRouteData(null);
+                        }}
+                        className={[
+                          "records-city-pick-button",
+                          startCity === item ? "records-city-pick-button-active" : "",
+                        ].join(" ")}
+                      >
+                        {cityName(item, isChinese)}
+                      </button>
                     ))}
-                  </select>
+                  </div>
                 </div>
 
-                <div className="records2-card">
+                <div className="records2-card records-city-picker-card">
                   <p className="records2-label">{t("Destination", "目的地")}</p>
-                  <select
-                    value={endCity}
-                    onChange={(e) => {
-                      setEndCity(e.target.value);
-                      setRouteData(null);
-                    }}
-                    className="records2-select"
-                  >
-                    {Object.keys(CITY_COORDS).map((item) => (
-                      <option key={item} value={item}>{cityName(item, isChinese)}</option>
+                  <div className="records-city-pick-scroll">
+                    {cityOptions.map((item) => (
+                      <button
+                        key={item}
+                        type="button"
+                        onClick={() => {
+                          setEndCity(item);
+                          setRouteData(null);
+                        }}
+                        className={[
+                          "records-city-pick-button",
+                          endCity === item ? "records-city-pick-button-active" : "",
+                        ].join(" ")}
+                      >
+                        {cityName(item, isChinese)}
+                      </button>
                     ))}
-                  </select>
+                  </div>
                 </div>
               </div>
 
@@ -654,7 +670,7 @@ export default function RecordsPage() {
                   disabled={routeLoading}
                   className="records-primary-button"
                 >
-                  {routeLoading ? t("CALCULATING", "計算中") : t("CALCULATE", "計算")}
+                  {routeLoading ? t("OPTIMIZING", "規劃中") : t("OPTIMIZE", "最佳化")}
                 </button>
               </div>
 
@@ -718,83 +734,101 @@ export default function RecordsPage() {
             </>
           )}
 
-          {mode === "FORECAST" && (
-            <div className="forecast-shell forecast-compact">
-              <div className="records2-advice">
-                <div className="app-notice-content">
-                  <Sparkles size={22} className="app-notice-icon" />
-                  <p className="app-notice-text">
-                    {t("Trend", "趨勢")}：{drift > 0 ? t("PM2.5 may increase tomorrow.", "明天 PM2.5 可能上升。") : t("Stable or lower PM2.5 expected tomorrow.", "明天 PM2.5 預期持平或下降。")}
-                  </p>
+          {!loading && mode === "FORECAST" && (
+            <div className="forecast-shell forecast-native-shell">
+              <div className="forecast-native-header-row">
+                <p className="forecast-native-header-title">{t("CITY PREDICTION", "城市預測")}</p>
+                <div className="forecast-native-time-pill">
+                  <span />
+                  {(selected?.time || "Now").split(" ")[1] || selected?.time || "Now"}
+                </div>
+              </div>
+
+              <div className="forecast-native-region-row">
+                {regions.map((item) => (
+                  <button
+                    key={item}
+                    type="button"
+                    onClick={() => setRegion(item)}
+                    className={[
+                      "forecast-native-region-button",
+                      region === item ? "forecast-native-region-active" : "",
+                    ].join(" ")}
+                  >
+                    {regionLabel[item]}
+                  </button>
+                ))}
+              </div>
+
+              <div className="forecast-native-city-scroll">
+                {(REGIONS[region] || []).map((item) => (
+                  <button
+                    key={item}
+                    type="button"
+                    onClick={() => setCity(item)}
+                    className={[
+                      "forecast-native-city-chip",
+                      city === item ? "forecast-native-city-chip-active" : "",
+                    ].join(" ")}
+                  >
+                    {cityName(item, isChinese)}
+                  </button>
+                ))}
+              </div>
+
+              <div className="forecast-native-pill-card">
+                <span className="forecast-native-bubble forecast-native-bubble-a" />
+                <span className="forecast-native-bubble forecast-native-bubble-b" />
+                <span className="forecast-native-bubble forecast-native-bubble-c" />
+
+                <div className="forecast-native-hero-row">
+                  <div className="forecast-native-caqi-box">
+                    <p className="forecast-native-caqi-num">{caqi}</p>
+                    <p className="forecast-native-caqi-label">CAQI</p>
+                  </div>
+
+                  <div className="forecast-native-hero-copy">
+                    <span className="forecast-native-status-pill">
+                      {caqi < 35 ? t("HEALTHY", "健康") : t("MODERATE", "普通")}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="forecast-native-track-row">
+                  <p>{t("Track Score", "追蹤分數")}</p>
+                  <span />
+                </div>
+
+                <div className="forecast-native-gauge-row">
+                  <RingGauge
+                    value={actualScore}
+                    label={t("Actual (Now)", "目前實測")}
+                    subLabel={actualScore > 60 ? t("Good", "良好") : t("Poor", "不佳")}
+                    color={actualScore > 60 ? "#FFCC00" : "#FF3B30"}
+                  />
+                  <span className="forecast-native-gauge-arrow">→</span>
+                  <RingGauge
+                    value={potentialScore}
+                    label={t("Predicted (Tom.)", "明日預測")}
+                    subLabel={potentialScore > 60 ? t("Good", "良好") : t("Poor", "不佳")}
+                    color={potentialScore > 60 ? "#FF9500" : "#FF3B30"}
+                  />
                 </div>
               </div>
 
               <div className="forecast-section">
-                <div className="forecast-summary-card">
-                  <div className="forecast-summary-top">
-                    <div>
-                      <p className="forecast-label">{t("City Prediction", "城市預測")}</p>
-                      <p className="forecast-city-name">
-                        {cityName(city, isChinese)}
-                      </p>
-                    </div>
+                <h2 className="forecast-section-title">{t("Live Metrics (Right Now)", "實時數據 (現在)")}</h2>
 
-                    <p className="forecast-time-pill">
-                      {(selected?.time || "Now").split(" ")[1] || "Now"}
-                    </p>
-                  </div>
-
-                  <div className="forecast-caqi-row">
-                    <div>
-                      <p className="forecast-label">CAQI</p>
-                      <p className="forecast-caqi-number">{caqi}</p>
-
-                      <span
-                        className="forecast-risk-pill"
-                        style={{
-                          "--risk-bg": `${pmColor(selected?.pm25 || 0)}22`,
-                          "--risk-color": pmColor(selected?.pm25 || 0),
-                        }}
-                      >
-                        {riskName(riskLabel(selected?.pm25 || 0), isChinese)}
-                      </span>
-                    </div>
-
-                    <div className="forecast-score-stack">
-                      <div className="forecast-soft-card">
-                        <p className="forecast-label">{t("Actual Now", "目前實測")}</p>
-                        <p className="forecast-value-sm">
-                          {Math.round(Math.min(100, ((selected?.pm25 || 0) / 75) * 100))}%
-                        </p>
-                      </div>
-
-                      <div className="forecast-soft-card">
-                        <p className="forecast-label">{t("Tomorrow", "明天")}</p>
-                        <p className="forecast-value-sm">
-                          {Math.round(Math.min(100, ((tomorrow.pm25 || 0) / 75) * 100))}%
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="forecast-section">
-                <h2 className="forecast-section-title">{t("Live Metrics", "即時指標")}</h2>
-
-                <div className="forecast-metrics-grid">
+                <div className="forecast-metrics-grid forecast-native-metrics-grid">
                   <div className="forecast-metric-card">
                     <p className="forecast-metric-title">PM2.5</p>
                     <p className="forecast-metric-sub">{t("Fine particles", "細懸浮微粒")}</p>
 
                     <div className="forecast-metric-row">
-                      <p
-                        className="forecast-metric-value"
-                        style={{ "--value-color": pmColor(selected?.pm25 || 0) }}
-                      >
-                        {selected?.pm25 || 0}
+                      <p className="forecast-metric-value forecast-metric-good">
+                        {Math.round(selected?.pm25 || 0)}
                       </p>
-                      <Sun size={20} color={pmColor(selected?.pm25 || 0)} />
+                      <Sun size={18} className="forecast-icon-good" />
                     </div>
                   </div>
 
@@ -804,9 +838,9 @@ export default function RecordsPage() {
 
                     <div className="forecast-metric-row">
                       <p className="forecast-metric-value forecast-metric-warn">
-                        {selected?.pm10 || 0}
+                        {Math.round(selected?.pm10 || 0)}
                       </p>
-                      <Cloud size={20} className="forecast-icon-warn" />
+                      <Cloud size={18} className="forecast-icon-warn" />
                     </div>
                   </div>
 
@@ -816,38 +850,38 @@ export default function RecordsPage() {
 
                     <div className="forecast-metric-row">
                       <p className="forecast-metric-value forecast-metric-good">
-                        {selected?.co || 0}
+                        {Math.round(selected?.co || 0)}
                       </p>
-                      <Leaf size={20} className="forecast-icon-good" />
+                      <Leaf size={18} className="forecast-icon-good" />
                     </div>
                   </div>
                 </div>
               </div>
 
               <div className="forecast-section">
-                <h2 className="forecast-section-title">{t("Future Scope", "未來範圍")}</h2>
+                <h2 className="forecast-section-title">{t("Future Scope (Tomorrow's Prediction)", "未來局勢 (24小時預測)")}</h2>
 
-                <div className="forecast-future-grid">
+                <div className="forecast-future-grid forecast-native-future-grid">
                   <div className="forecast-future-cell">
-                    <Cloud size={22} className="forecast-icon-muted" />
-                    <p className="forecast-future-value">{tomorrow.pm25 || 0}</p>
-                    <p className="forecast-future-label">PM2.5</p>
+                    <Cloud size={20} className="forecast-icon-muted" />
+                    <p className="forecast-future-value">{Number(tomorrow.pm25 || 0).toFixed(1)}</p>
+                    <p className="forecast-future-label">PM 2.5</p>
                   </div>
 
                   <div className="forecast-future-cell">
-                    <TrendingUp size={22} className="forecast-icon-muted" />
-                    <p className="forecast-future-value">{tomorrow.pm10 || 0}</p>
-                    <p className="forecast-future-label">PM10</p>
+                    <TrendingUp size={20} className="forecast-icon-muted" />
+                    <p className="forecast-future-value">{Number(tomorrow.pm10 || 0).toFixed(1)}</p>
+                    <p className="forecast-future-label">PM 10</p>
                   </div>
 
                   <div className="forecast-future-cell">
-                    <Leaf size={22} className="forecast-icon-muted" />
-                    <p className="forecast-future-value">{tomorrow.co || 0}</p>
-                    <p className="forecast-future-label">CO</p>
+                    <Leaf size={20} className="forecast-icon-muted" />
+                    <p className="forecast-future-value">{Math.round(tomorrow.co || 0)}</p>
+                    <p className="forecast-future-label">CO2 / CO</p>
                   </div>
 
                   <div className="forecast-future-cell">
-                    <Navigation size={22} className="forecast-icon-muted" />
+                    <Navigation size={20} className="forecast-icon-muted" />
                     <p
                       className="forecast-future-value"
                       style={{ "--value-color": drift <= 0 ? "#34C759" : "#FF3B30" }}
@@ -860,39 +894,64 @@ export default function RecordsPage() {
               </div>
 
               <div className="forecast-section">
-                <h2 className="forecast-section-title">{t("7-Day Outlook", "7 日展望")}</h2>
+                <h2 className="forecast-section-title">{t("7-Day Prediction Outlook (PM2.5)", "7天預測統計")}</h2>
 
-                <div className="forecast-week-card">
+                <div className="forecast-week-card forecast-native-week-card">
                   <div className="forecast-week-row">
                     {dailyPrediction.map((day) => (
                       <div key={day.date}>
                         <p className="forecast-week-day">{forecastDayLabel(day)}</p>
-                        <Cloud size={21} className="forecast-icon-accent" />
-                        <p className="forecast-week-value">{day.pm25}</p>
+                        <Cloud size={20} className="forecast-icon-accent" />
+                        <p className="forecast-week-value">{Math.round(day.pm25)}</p>
                       </div>
                     ))}
                   </div>
 
-                  <div className="forecast-chart-row">
-                    {dailyPrediction.map((day) => (
-                      <div key={day.date} className="forecast-chart-column">
-                        <div
-                          className="forecast-chart-bar"
-                          style={{ height: `${Math.max(16, day.pm25 * 1.5)}px` }}
-                        />
-                        <div className="forecast-chart-dot" />
-                      </div>
-                    ))}
+                  <div className="forecast-native-chart-box">
+                    <svg viewBox="0 0 330 140" role="img" aria-label={t("PM2.5 forecast trend", "PM2.5 預測趨勢")}>
+                      {forecastTrendValues.map((_, index) => {
+                        const x = 15 + (index / 6) * 300;
+                        return (
+                          <line
+                            key={`grid-${index}`}
+                            x1={x}
+                            y1="10"
+                            x2={x}
+                            y2="130"
+                            className="forecast-native-chart-grid"
+                          />
+                        );
+                      })}
+                      <polyline
+                        points={forecastLinePoints}
+                        fill="none"
+                        className="forecast-native-chart-line"
+                      />
+                      {forecastTrendValues.map((value, index) => {
+                        const x = 15 + (index / 6) * 300;
+                        const y = 15 + (100 - ((value / forecastMax) * 100));
+                        return (
+                          <circle
+                            key={`point-${index}`}
+                            cx={x}
+                            cy={y}
+                            r={index === forecastTrendValues.length - 1 ? 5 : 4}
+                            className="forecast-native-chart-dot"
+                          />
+                        );
+                      })}
+                    </svg>
                   </div>
 
                   <p className="forecast-updated-at">
-                    {t("Last predicted", "最後預測")}：{new Date().toLocaleString(isChinese ? "zh-TW" : "en-US")}
+                    {t("Last predicted", "最後預測")}：{selected?.time || t("Fresh", "最新")}
                   </p>
                 </div>
               </div>
             </div>
           )}
 
+          </div>
         </section>
 
         <OriginalBottomNav />

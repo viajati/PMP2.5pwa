@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Bell,
+  Camera,
   ChevronRight,
   Languages,
   LogOut,
@@ -294,49 +295,37 @@ export default function SetupPage() {
   return (
     <main className="app-root">
       <div className="phone-frame relative min-h-screen overflow-y-auto">
-        <section className="px-5 pb-52 pt-8">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="screen-kicker">
-                {isChinese ? "個人" : "Personal"}
-              </p>
-              <h1 className="app-page-title mt-2">
-                {isChinese ? "設定" : "Setup"}
-              </h1>
-            </div>
+        <section className="setup-native-content">
+          <button
+            type="button"
+            onClick={() => {
+              const loaded = loadPrefs();
+              setPrefs(loaded);
+              setDraft(loaded);
+              setStatus(t("Settings reloaded.", "設定已重新載入。"));
+            }}
+            className="setup-native-refresh"
+            title={isChinese ? "重新載入設定" : "Reload settings"}
+          >
+            <RefreshCw size={22} strokeWidth={3} />
+          </button>
 
-            <button
-              type="button"
-              onClick={() => {
-                const loaded = loadPrefs();
-                setPrefs(loaded);
-                setDraft(loaded);
-                setStatus(t("Settings reloaded.", "設定已重新載入。"));
-              }}
-              className="theme-icon-button"
-              title={isChinese ? "重新載入設定" : "Reload settings"}
-            >
-              <RefreshCw size={22} strokeWidth={3} />
-            </button>
+          <div className="setup-profile-hero">
+            <div className="setup-avatar-shell">
+              <AvatarVisual value={prefs.avatar} className="setup-avatar-visual" />
+              <span className="setup-avatar-edit-badge">
+                <Camera size={12} strokeWidth={3} />
+              </span>
+            </div>
+            <h1 className="setup-user-name">
+              {(prefs.name || user?.displayName || (isChinese ? "個人檔案" : "Profile")).toUpperCase()}
+            </h1>
+            <p className="setup-user-status">
+              {(user?.email || (isChinese ? "未登入帳號" : "FREE ACCOUNT")).toUpperCase()}
+            </p>
           </div>
 
-          <div className="settings-card mt-7">
-            <div className="identity-row">
-              <AvatarVisual value={prefs.avatar} className="avatar-button" />
-
-              <div className="min-w-0 flex-1">
-                <p className="profile-kicker">
-                  {isChinese ? "個人識別" : "Profile Identity"}
-                </p>
-                <p className="profile-name">
-                  {prefs.name || user?.displayName || (isChinese ? "使用者" : "User")}
-                </p>
-                <p className="profile-sub profile-email">
-                  {user?.email || (isChinese ? "尚未登入" : "Not signed in")}
-                </p>
-              </div>
-            </div>
-
+          <div className="settings-card setup-identity-card">
             <AvatarPicker
               value={prefs.avatar}
               onChange={chooseAvatar}
