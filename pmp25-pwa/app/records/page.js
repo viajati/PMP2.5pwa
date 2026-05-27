@@ -59,10 +59,18 @@ function caqiFrom(pm25, pm10, co) {
   return Math.round(Math.max(pm25Score, pm10Score, coScore));
 }
 
-function getWeatherMeta(code, windSpeed = 0) {
-  if (windSpeed >= 28) return { Icon: Wind, label: "windy", type: "windy" };
+function getWeatherMeta(rawCode, rawWindSpeed = 0) {
+  const code = Number(rawCode);
+  const windSpeed = Number(rawWindSpeed);
+
+  if (Number.isFinite(windSpeed) && windSpeed >= 28) return { Icon: Wind, label: "windy", type: "windy" };
   if ([95, 96, 99].includes(code)) return { Icon: CloudLightning, label: "stormy", type: "storm" };
-  if ([51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82].includes(code)) return { Icon: CloudRain, label: "rainy", type: "rain" };
+  if ([
+    51, 53, 55, 56, 57,
+    61, 63, 65, 66, 67,
+    71, 73, 75, 77,
+    80, 81, 82, 85, 86,
+  ].includes(code)) return { Icon: CloudRain, label: "rainy", type: "rain" };
   if ([45, 48].includes(code)) return { Icon: CloudFog, label: "foggy", type: "cloudy" };
   if (code === 3) return { Icon: Cloud, label: "cloudy", type: "cloudy" };
   if (code === 2) return { Icon: CloudSun, label: "partly cloudy", type: "partly" };

@@ -41,12 +41,12 @@ const defaultProfile = DEFAULT_HEALTH_PROFILE;
 const ageLabels = ["<18", "18–35", "36–60", "60+"];
 
 const conditionOptions = [
-  { id: "asthma", label: "Asthma", zh: "氣喘", icon: Sparkles },
-  { id: "dust", label: "Dust Allergies", zh: "塵蟎過敏", icon: Snowflake },
-  { id: "sensitivity", label: "Air Sensitivity", zh: "空氣敏感", icon: Leaf },
-  { id: "allergies", label: "Pollen Allergies", zh: "花粉過敏", icon: Flower },
-  { id: "cardio", label: "Heart Vitality", zh: "心血管照護", icon: Heart },
-  { id: "outdoor", label: "Outdoor Worker", zh: "戶外工作者", icon: Wrench },
+  { id: "asthma", label: "Asthma", zh: "氣喘", icon: Sparkles, story: "tending to your breath", zhStory: "照顧呼吸" },
+  { id: "dust", label: "Dust Allergies", zh: "塵蟎過敏", icon: Snowflake, story: "clearing the air", zhStory: "避開粉塵" },
+  { id: "sensitivity", label: "Air Sensitivity", zh: "空氣敏感", icon: Leaf, story: "sensing the whispers", zhStory: "感受空氣變化" },
+  { id: "allergies", label: "Pollen Allergies", zh: "花粉過敏", icon: Flower, story: "protecting your peace", zhStory: "守護日常舒適" },
+  { id: "cardio", label: "Heart Vitality", zh: "心血管照護", icon: Heart, story: "nurturing your rhythm", zhStory: "照護身體節奏" },
+  { id: "outdoor", label: "Outdoor Worker", zh: "戶外工作者", icon: Wrench, story: "braving the sky", zhStory: "長時間面對戶外空氣" },
 ];
 
 function loadJson(key, fallback) {
@@ -66,39 +66,43 @@ function saveJson(key, value) {
 }
 
 function ageStory(level, chinese) {
-  if (level === 1) return chinese ? "年紀較小，對空氣污染更敏感。" : "Young and more vulnerable to poor air.";
-  if (level === 2) return chinese ? "活躍成人，暴露風險較平衡。" : "Active adult with balanced exposure risk.";
-  if (level === 3) return chinese ? "生活穩定，具有中度敏感度。" : "Stable routine with moderate sensitivity.";
-  return chinese ? "高齡族群，需要更高保護優先度。" : "Older adult with higher protection priority.";
+  if (level === 1) return chinese ? "年輕的萌芽，開始認識自己的空氣節奏。" : "A young seedling, starting your journey.";
+  if (level === 2) return chinese ? "正值盛放階段，帶著能量探索日常。" : "In the bloom of life, exploring with energy.";
+  if (level === 3) return chinese ? "穩定前行，帶著清楚的生活步調。" : "A steady guardian, moving with purpose.";
+  if (level === 4) return chinese ? "成熟而敏銳，更值得細緻守護。" : "A wise soul, observing with deep grace.";
+  return chinese ? "選擇年齡階段後，這裡會即時更新。" : "Choose your era and this story updates live.";
 }
 
 function vitalityStory(selected, chinese) {
-  if (!selected?.length) return chinese ? "尚未選擇特殊敏感因子。" : "No special sensitivity selected.";
+  if (!selected?.length) return chinese ? "目前沒有特殊敏感因子，保持平穩呼吸。" : "Living with pure vitality and peace.";
 
-  if (selected.length === 1) {
-    const found = conditionOptions.find((item) => item.id === selected[0]);
-    return found
-      ? chinese
-        ? `已選擇${found.zh}。`
-        : `${found.label} selected.`
-      : chinese
-        ? "已選擇健康敏感因子。"
-        : "Health sensitivity selected.";
+  const stories = selected
+    .map((id) => conditionOptions.find((item) => item.id === id))
+    .filter(Boolean)
+    .map((item) => chinese ? item.zhStory : item.story);
+
+  if (stories.length === 1) {
+    return chinese ? `正在${stories[0]}，用更溫柔的方式照顧自己。` : `You are ${stories[0]} with gentle care.`;
   }
 
-  return chinese ? `已選擇 ${selected.length} 個敏感因子。` : `${selected.length} sensitivity factors selected.`;
+  if (stories.length === 2) {
+    return chinese ? `一邊${stories[0]}，一邊${stories[1]}。` : `A soul ${stories[0]} while ${stories[1]}.`;
+  }
+
+  const preview = stories.slice(0, 3).join(chinese ? "、" : ", ");
+  return chinese ? `正在${preview}，並持續照顧其他敏感因子。` : `Guardian of your path, ${preview}, and more.`;
 }
 
 function activityStory(level, chinese) {
-  if (level === 1) return chinese ? "戶外活動較低。" : "Low outdoor movement.";
-  if (level === 2) return chinese ? "日常活動量中等。" : "Moderate daily movement.";
-  return chinese ? "戶外活動與通風接觸較高。" : "High outdoor activity and ventilation.";
+  if (level >= 3) return chinese ? "活動力旺盛，像風一樣穿梭在城市裡。" : "Your spirit is vibrant, dancing with nature's wind.";
+  if (level >= 2) return chinese ? "用平衡的步調穿過日常路線。" : "You move with a balanced rhythm through the world.";
+  return chinese ? "在安靜時刻裡保留自己的節奏。" : "You find stillness and peace in the quiet moments.";
 }
 
 function fitnessStory(level, chinese) {
-  if (level === 1) return chinese ? "身體基準較溫和。" : "Soft baseline.";
-  if (level === 2) return chinese ? "體能狀態穩定。" : "Steady fitness.";
-  return chinese ? "體能較強，活動強度較高。" : "Strong fitness and higher exertion.";
+  if (level >= 3) return chinese ? "身體韌性強，適合更有強度的活動安排。" : "You possess a soul that is unbreakable and firm.";
+  if (level >= 2) return chinese ? "韌性正在穩定累積。" : "Your resilience is growing steady and strong.";
+  return chinese ? "正在建立溫柔而穩固的基礎。" : "You are nurturing a gentle foundation of strength.";
 }
 
 function StoryCard({ icon: Icon, title, text }) {
@@ -302,12 +306,17 @@ export default function ProfilePage() {
                 <ArrowLeft size={20} strokeWidth={3} />
               </Link>
 
-              <div className="profile-native-avatar-wrapper">
+              <button
+                type="button"
+                className="profile-native-avatar-wrapper"
+                onClick={() => document.getElementById("profile-avatar-picker")?.scrollIntoView({ behavior: "smooth", block: "center" })}
+                title={t("Change avatar", "更換頭像")}
+              >
                 <AvatarVisual value={prefs.avatar} className="profile-native-avatar" />
                 <span className="profile-native-camera-badge">
                   <Camera size={12} strokeWidth={3} />
                 </span>
-              </div>
+              </button>
 
               <div className="min-w-0">
                 <p className="profile-native-greeting">
@@ -351,103 +360,105 @@ export default function ProfilePage() {
 
         <section className="profile-native-scroll">
           <div className="profile-native-form-card">
-          <AvatarPicker
-            value={prefs.avatar}
-            onChange={chooseAvatar}
-            chinese={isChinese}
-          />
-
-          <SectionTitle>{t("Life Era", "年齡階段")}</SectionTitle>
-
-          <SliderBlock
-            title={t("Age Group", "年齡族群")}
-            value={profile.ageLevel}
-            min={1}
-            max={4}
-            labels={ageLabels}
-            onChange={(value) => updateProfile({ ageLevel: value })}
-          />
-
-          <SectionTitle>{t("Health Conditions", "健康狀況")}</SectionTitle>
-
-          <div className="condition-panel">
-            <div className="condition-list">
-              {conditionOptions.map((item) => {
-                const Icon = item.icon;
-                const active = profile.conditions.includes(item.id);
-
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => toggleCondition(item.id)}
-                    className={[
-                      "condition-chip",
-                      active
-                        ? "condition-chip-active"
-                        : "",
-                    ].join(" ")}
-                  >
-                    <Icon size={16} strokeWidth={2.8} />
-                    {isChinese ? item.zh : item.label}
-                  </button>
-                );
-              })}
+            <div id="profile-avatar-picker">
+              <AvatarPicker
+                value={prefs.avatar}
+                onChange={chooseAvatar}
+                chinese={isChinese}
+              />
             </div>
-          </div>
 
-          <SectionTitle>{t("Movement Flow", "活動量")}</SectionTitle>
+            <SectionTitle>{t("Life Era", "年齡階段")}</SectionTitle>
 
-          <SliderBlock
-            title={t("Activity Level", "活動程度")}
-            value={profile.activityLevel}
-            min={1}
-            max={3}
-            labels={isChinese ? ["低", "中", "高"] : ["Quiet", "Flow", "Vibrant"]}
-            onChange={(value) => updateProfile({ activityLevel: value })}
-          />
+            <SliderBlock
+              title={t("Age Group", "年齡族群")}
+              value={profile.ageLevel}
+              min={1}
+              max={4}
+              labels={ageLabels}
+              onChange={(value) => updateProfile({ ageLevel: value })}
+            />
 
-          <SectionTitle>{t("Body Strength", "體能強度")}</SectionTitle>
+            <SectionTitle>{t("Health Conditions", "健康狀況")}</SectionTitle>
 
-          <SliderBlock
-            title={t("Fitness Level", "體能等級")}
-            value={profile.fitnessLevel}
-            min={1}
-            max={3}
-            labels={isChinese ? ["柔和", "穩定", "強"] : ["Soft", "Steady", "Strong"]}
-            colorClass="theme-range-rose"
-            onChange={(value) => updateProfile({ fitnessLevel: value })}
-          />
+            <div className="condition-panel">
+              <div className="condition-list">
+                {conditionOptions.map((item) => {
+                  const Icon = item.icon;
+                  const active = profile.conditions.includes(item.id);
 
-          <button
-            type="button"
-            onClick={saveProfile}
-            className="profile-native-save"
-          >
-            {t("Update Profile", "更新個人檔案")}
-            <Save size={22} strokeWidth={2.8} />
-          </button>
-
-          {saved && (
-            <div className="status-callout text-center">
-              {firebaseReady && user
-                ? t("Profile updated and synced.", "個人檔案已更新並同步。")
-                : t("Profile updated locally.", "個人檔案已在本機更新。")}
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => toggleCondition(item.id)}
+                      className={[
+                        "condition-chip",
+                        active
+                          ? "condition-chip-active"
+                          : "",
+                      ].join(" ")}
+                    >
+                      <Icon size={16} strokeWidth={2.8} />
+                      {isChinese ? item.zh : item.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          )}
 
-          {saveError && (
-            <div className="status-callout text-center">
-              {saveError}
-            </div>
-          )}
+            <SectionTitle>{t("Movement Flow", "活動量")}</SectionTitle>
 
-          <Link
-            href="/setup"
-            className="profile-back-link"
-          >
-            {t("Back to Setup", "返回設定")}
-          </Link>
+            <SliderBlock
+              title={t("Activity Level", "活動程度")}
+              value={profile.activityLevel}
+              min={1}
+              max={3}
+              labels={isChinese ? ["低", "中", "高"] : ["Quiet", "Flow", "Vibrant"]}
+              onChange={(value) => updateProfile({ activityLevel: value })}
+            />
+
+            <SectionTitle>{t("Body Strength", "體能強度")}</SectionTitle>
+
+            <SliderBlock
+              title={t("Fitness Level", "體能等級")}
+              value={profile.fitnessLevel}
+              min={1}
+              max={3}
+              labels={isChinese ? ["柔和", "穩定", "強"] : ["Soft", "Steady", "Strong"]}
+              colorClass="theme-range-rose"
+              onChange={(value) => updateProfile({ fitnessLevel: value })}
+            />
+
+            <button
+              type="button"
+              onClick={saveProfile}
+              className="profile-native-save"
+            >
+              {t("Update Profile", "更新個人檔案")}
+              <Save size={22} strokeWidth={2.8} />
+            </button>
+
+            {saved && (
+              <div className="status-callout text-center">
+                {firebaseReady && user
+                  ? t("Profile updated and synced.", "個人檔案已更新並同步。")
+                  : t("Profile updated locally.", "個人檔案已在本機更新。")}
+              </div>
+            )}
+
+            {saveError && (
+              <div className="status-callout text-center">
+                {saveError}
+              </div>
+            )}
+
+            <Link
+              href="/setup"
+              className="profile-back-link"
+            >
+              {t("Back to Setup", "返回設定")}
+            </Link>
           </div>
         </section>
       </div>

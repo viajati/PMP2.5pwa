@@ -27,7 +27,7 @@ function SunOrb({ small = false }) {
   );
 }
 
-function PremiumCloud({ y, delay, scale }) {
+function PremiumCloud({ y, delay, scale, opacity = 0.72, duration = 34000 }) {
   return (
     <div
       className="weather-cloud-wrapper"
@@ -35,6 +35,8 @@ function PremiumCloud({ y, delay, scale }) {
         "--cloud-y": `${y}px`,
         "--cloud-delay": `${delay}ms`,
         "--cloud-scale": scale,
+        "--cloud-opacity": opacity,
+        "--cloud-duration": `${duration}ms`,
       }}
       aria-hidden="true"
     >
@@ -87,13 +89,42 @@ function Rain() {
   );
 }
 
-function Clouds() {
+function Clouds({ density = "cloudy" }) {
+  const cloudsByDensity = {
+    sunny: [
+      { y: 20, delay: 0, scale: 1.2, opacity: 0.34, duration: 34000 },
+      { y: 80, delay: 5000, scale: 0.8, opacity: 0.3, duration: 31000 },
+      { y: 140, delay: 12000, scale: 1.5, opacity: 0.24, duration: 39000 },
+      { y: 50, delay: 20000, scale: 0.6, opacity: 0.26, duration: 32000 },
+    ],
+    partly: [
+      { y: 20, delay: 0, scale: 1.2, opacity: 0.58, duration: 34000 },
+      { y: 80, delay: 5000, scale: 0.8, opacity: 0.52, duration: 31000 },
+      { y: 140, delay: 12000, scale: 1.5, opacity: 0.46, duration: 39000 },
+      { y: 50, delay: 20000, scale: 0.6, opacity: 0.42, duration: 32000 },
+    ],
+    cloudy: [
+      { y: 20, delay: 0, scale: 1.2, opacity: 0.82, duration: 34000 },
+      { y: 80, delay: 5000, scale: 0.8, opacity: 0.74, duration: 31000 },
+      { y: 140, delay: 12000, scale: 1.5, opacity: 0.64, duration: 39000 },
+      { y: 50, delay: 20000, scale: 0.6, opacity: 0.6, duration: 32000 },
+    ],
+  };
+
+  const clouds = cloudsByDensity[density] || cloudsByDensity.cloudy;
+
   return (
     <div className="weather-layer" aria-hidden="true">
-      <PremiumCloud y={20} delay={0} scale={1.2} />
-      <PremiumCloud y={80} delay={5000} scale={0.8} />
-      <PremiumCloud y={140} delay={12000} scale={1.5} />
-      <PremiumCloud y={50} delay={20000} scale={0.6} />
+      {clouds.map((cloud, index) => (
+        <PremiumCloud
+          key={index}
+          y={cloud.y}
+          delay={cloud.delay}
+          scale={cloud.scale}
+          opacity={cloud.opacity}
+          duration={cloud.duration}
+        />
+      ))}
     </div>
   );
 }
@@ -128,44 +159,59 @@ function Wind() {
 }
 
 function normalizeWeatherType(type = "") {
-  if (type === "rain") return "raining";
-  return type;
+  const normalized = String(type).trim().toLowerCase();
+
+  if (normalized === "rain" || normalized === "rainy") return "raining";
+  if (normalized === "mostly sunny" || normalized === "partly cloudy" || normalized === "partly-sunny") return "partly";
+  if (normalized === "stormy" || normalized === "thunderstorm") return "storm";
+  return normalized;
 }
 
 export default function WeatherBackground({ weather, hour = 12 }) {
-  const code = weather?.weatherCode ?? 0;
-  const speed = weather?.windSpeed ?? 0;
+  const rawCode = Number(weather?.weatherCode);
+  const code = Number.isFinite(rawCode) ? rawCode : 0;
+  const rawSpeed = Number(weather?.windSpeed);
+  const speed = Number.isFinite(rawSpeed) ? rawSpeed : 0;
   const type = normalizeWeatherType(weather?.type || "sunny");
   const safeHour = Number.isFinite(hour) ? hour : 12;
 
   const isNight = safeHour >= 18 || safeHour < 5;
-  const isMorning = safeHour >= 5 && safeHour < 11;
-  const isNoon = safeHour >= 11 && safeHour < 18;
-  const isRainy = code >= 51 || type === "raining" || type === "storm";
+  const isRainy = [
+    51, 53, 55, 56, 57,
+    61, 63, 65, 66, 67,
+    71, 73, 75, 77,
+    80, 81, 82, 85, 86,
+  ].includes(code) || type === "raining";
+  const isStorm = [95, 96, 99].includes(code) || type === "storm";
   const isPartly = type === "partly" || code === 1 || code === 2;
   const isCloudy = code === 3 || code === 45 || code === 48 || type === "cloudy";
   const isSunny = code === 0 || type === "sunny";
-  const isWindy = speed > 7 || type === "windy";
-  const isSunnyFallback = isSunny || isPartly;
+  const isWindy = speed >= 28 || type === "windy";
 
-  let variant = "sunny";
-  if (isNight) variant = "night";
-  else if (type === "storm") variant = "storm";
-  else if (isRainy) variant = "rain";
-  else if (isWindy) variant = "windy";
-  else if (isCloudy) variant = "cloudy";
-  else if (isPartly) variant = "partly";
-  else if (isNoon) variant = "sunny";
+  let condition = "sunny";
+  if (isStorm) condition = "storm";
+  else if (isRainy) condition = "rain";
+  else if (type === "windy" || (isWindy && !isSunny && !isPartly)) condition = "windy";
+  else if (isCloudy) condition = "cloudy";
+  else if (isPartly) condition = "partly";
+
+  const variant = isNight && condition === "sunny" ? "night" : condition;
 
   return (
-    <div className={`weather-background weather-background-${variant}`}>
-      {isNight && <Stars />}
-      {!isNight && isSunnyFallback && <SunOrb />}
-      {!isNight && !isSunnyFallback && !isRainy && ![3, 45, 48].includes(code) && (isMorning || isNoon) && (
-        <SunOrb small />
-      )}
-      {isRainy && <Rain />}
-      {(isCloudy || isSunnyFallback) && <Clouds />}
+    <div
+      className={[
+        "weather-background",
+        `weather-background-${variant}`,
+        isNight ? "weather-background-after-dark" : "",
+      ].join(" ")}
+      data-weather-condition={condition}
+    >
+      {isNight && condition === "sunny" && <Stars />}
+      {!isNight && (condition === "sunny" || condition === "partly") && <SunOrb small={condition === "partly"} />}
+      {condition === "sunny" && <Clouds density="sunny" />}
+      {condition === "partly" && <Clouds density="partly" />}
+      {condition === "cloudy" && <Clouds density="cloudy" />}
+      {(condition === "rain" || condition === "storm") && <Rain />}
       {isWindy && <Wind />}
     </div>
   );
