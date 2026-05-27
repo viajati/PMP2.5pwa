@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   Activity,
   ArrowLeft,
+  Camera,
   CalendarDays,
   Flower,
   Heart,
@@ -102,18 +103,18 @@ function fitnessStory(level, chinese) {
 
 function StoryCard({ icon: Icon, title, text }) {
   return (
-    <div className="story-card">
-      <div className="story-card-icon">
+    <div className="profile-native-status-box">
+      <div className="profile-native-box-gradient">
         <Icon size={21} strokeWidth={2.8} />
+
+        <p className="profile-native-box-title">
+          {title}
+        </p>
+
+        <p className="profile-native-box-copy">
+          {text}
+        </p>
       </div>
-
-      <p className="story-card-title">
-        {title}
-      </p>
-
-      <p className="story-card-copy">
-        {text}
-      </p>
     </div>
   );
 }
@@ -274,71 +275,87 @@ export default function ProfilePage() {
 
   return (
     <main className="app-root">
-      <div className="phone-frame relative min-h-screen overflow-y-auto">
-        <section className="app-page-body profile-page-body">
-          <div className="app-page-header">
-            <Link
-              href="/setup"
-              className="theme-icon-button"
-            >
-              <ArrowLeft size={22} strokeWidth={3} />
-            </Link>
-
-            <div className="text-right">
-              <p className="screen-kicker">{t("Profile", "個人檔案")}</p>
-              <h1 className="app-page-title mt-2">{t("Health", "健康")}</h1>
-            </div>
+      <div className="phone-frame relative min-h-screen overflow-y-auto profile-native-frame">
+        <section className="profile-native-header-layer">
+          <div className="profile-native-gradient">
+            {Array.from({ length: 10 }).map((_, index) => (
+              <Leaf
+                key={index}
+                className="profile-floating-leaf"
+                size={22}
+                strokeWidth={2.5}
+                style={{
+                  "--leaf-x": `${(index * 43 + 13) % 100}%`,
+                  "--leaf-delay": `${index * 1000}ms`,
+                }}
+              />
+            ))}
           </div>
 
-          <div className="profile-card profile-identity-card">
-            <div className="identity-row">
-              <AvatarVisual value={prefs.avatar} className="avatar-button" />
+          <div className="profile-native-fixed-header">
+            <div className="profile-native-header-top">
+              <Link
+                href="/setup"
+                className="profile-native-back"
+                title={t("Back to Setup", "返回設定")}
+              >
+                <ArrowLeft size={20} strokeWidth={3} />
+              </Link>
 
-              <div className="min-w-0 flex-1">
-                <p className="profile-kicker">
-                  {t("Personalize", "個人化")}
+              <div className="profile-native-avatar-wrapper">
+                <AvatarVisual value={prefs.avatar} className="profile-native-avatar" />
+                <span className="profile-native-camera-badge">
+                  <Camera size={12} strokeWidth={3} />
+                </span>
+              </div>
+
+              <div className="min-w-0">
+                <p className="profile-native-greeting">
+                  {t("Hi", "嗨")}，{prefs.name || user?.email?.split("@")[0] || t("User", "使用者")}!
                 </p>
-                <p className="profile-name">
-                  {t("Hi", "嗨")}，{prefs.name || t("User", "使用者")}
-                </p>
-                <p className="profile-sub">
-                  {t("Health and activity profile", "健康與活動設定")}
-                </p>
+                <h1 className="profile-native-title">{t("Personalize", "個人化")}</h1>
               </div>
             </div>
 
-            <AvatarPicker
-              value={prefs.avatar}
-              onChange={chooseAvatar}
-              chinese={isChinese}
-            />
+            <div className="profile-native-boxes-container">
+              <div className="profile-native-boxes-row">
+                <StoryCard
+                  icon={CalendarDays}
+                  title={t("Era", "年齡")}
+                  text={ageStory(profile.ageLevel, isChinese)}
+                />
+
+                <StoryCard
+                  icon={Heart}
+                  title={t("Vitality", "敏感度")}
+                  text={vitalityStory(profile.conditions, isChinese)}
+                />
+              </div>
+
+              <div className="profile-native-boxes-row">
+                <StoryCard
+                  icon={Activity}
+                  title={t("Lifestyle", "生活型態")}
+                  text={activityStory(profile.activityLevel, isChinese)}
+                />
+
+                <StoryCard
+                  icon={ShieldCheck}
+                  title={t("Strength", "體能")}
+                  text={fitnessStory(profile.fitnessLevel, isChinese)}
+                />
+              </div>
+            </div>
           </div>
+        </section>
 
-          <div className="story-grid">
-            <StoryCard
-              icon={CalendarDays}
-              title={t("Era", "年齡")}
-              text={ageStory(profile.ageLevel, isChinese)}
-            />
-
-            <StoryCard
-              icon={Heart}
-              title={t("Vitality", "敏感度")}
-              text={vitalityStory(profile.conditions, isChinese)}
-            />
-
-            <StoryCard
-              icon={Activity}
-              title={t("Lifestyle", "生活型態")}
-              text={activityStory(profile.activityLevel, isChinese)}
-            />
-
-            <StoryCard
-              icon={ShieldCheck}
-              title={t("Strength", "體能")}
-              text={fitnessStory(profile.fitnessLevel, isChinese)}
-            />
-          </div>
+        <section className="profile-native-scroll">
+          <div className="profile-native-form-card">
+          <AvatarPicker
+            value={prefs.avatar}
+            onChange={chooseAvatar}
+            chinese={isChinese}
+          />
 
           <SectionTitle>{t("Life Era", "年齡階段")}</SectionTitle>
 
@@ -405,10 +422,10 @@ export default function ProfilePage() {
           <button
             type="button"
             onClick={saveProfile}
-            className="settings-button settings-button-primary mt-8"
+            className="profile-native-save"
           >
-            <Save size={19} strokeWidth={2.8} />
             {t("Update Profile", "更新個人檔案")}
+            <Save size={22} strokeWidth={2.8} />
           </button>
 
           {saved && (
@@ -431,6 +448,7 @@ export default function ProfilePage() {
           >
             {t("Back to Setup", "返回設定")}
           </Link>
+          </div>
         </section>
       </div>
     </main>

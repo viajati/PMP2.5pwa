@@ -2,8 +2,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
+  Activity,
+  BarChart3,
+  CalendarDays,
   ChevronDown,
   ChevronUp,
+  Footprints,
+  Gauge,
   RefreshCw,
   Share2,
   X,
@@ -16,16 +21,15 @@ import { loadUserRouteHistory } from "@/lib/firebaseData";
 import { routeDateId } from "@/lib/trackStorage";
 import {
   cityName,
+  riskName,
+  routeSourceName,
   summaryDate,
   summaryDayName,
+  transportName,
 } from "@/lib/i18n";
 
-function pm25Condition(avg = 0, chinese = false) {
-  if (avg === 0) return { label: chinese ? "無數據" : "NO DATA", color: "#8E8E93" };
-  if (avg <= 15.4) return { label: chinese ? "優良" : "EXCELLENT", color: "#34C759" };
-  if (avg <= 35.4) return { label: chinese ? "普通" : "FAIR", color: "#FFCC00" };
-  if (avg <= 54.4) return { label: chinese ? "不佳" : "POOR", color: "#FF9500" };
-  return { label: chinese ? "危害" : "HAZARDOUS", color: "#FF3B30" };
+function safeRisk(day) {
+  return day?.risk || { label: "LOW", color: "#34C759" };
 }
 
 export default function SummaryPage() {
@@ -89,10 +93,14 @@ export default function SummaryPage() {
     risk: { label: "LOW", color: "#34C759" },
   };
 
-  const todayMeta = pm25Condition(today.avgPm25, isChinese);
+  const todayRisk = safeRisk(today);
   const todayLocation = today.cityPath?.length > 0
     ? cityName(today.cityPath[today.cityPath.length - 1], isChinese)
     : t("Phone GPS", "手機 GPS");
+  const maxExposure = Math.max(
+    1,
+    ...summary.days.map((day) => day.exposureLoad || 0)
+  );
 
   return (
     <main className="app-root">
@@ -101,7 +109,7 @@ export default function SummaryPage() {
           <div className="summary-today-card">
             <div className="summary-today-gradient">
               <div className="summary-today-header">
-                <p className="summary-today-label">{t("TODAY'S STATUS", "今日狀態")}</p>
+                <p className="summary-today-label">{t("TODAY'S EXPOSURE LOAD", "今日暴露負荷")}</p>
                 <div className="summary-today-actions">
                   <button
                     type="button"
@@ -126,10 +134,8 @@ export default function SummaryPage() {
 
               <div className="summary-today-main">
                 <div>
-                  <p className="summary-today-number">
-                    {today.km > 0 && today.km < 0.1 ? today.km.toFixed(2) : today.km.toFixed(1)}
-                  </p>
-                  <p className="summary-today-unit">{t("KM WALKED", "步行公里")}</p>
+                  <p className="summary-today-number">{today.exposureLoad}</p>
+                  <p className="summary-today-unit">{t("SCORE", "分數")}</p>
                 </div>
 
                 <span className="summary-today-divider" />
@@ -142,24 +148,69 @@ export default function SummaryPage() {
 
               <div className="summary-today-footer">
                 <p className="summary-today-rating">
-                  {isChinese ? `狀況：${todayMeta.label}` : `CONDITION: ${todayMeta.label}`}
+                  {isChinese ? `風險：${riskName(todayRisk.label, true)}` : `RISK: ${riskName(todayRisk.label)}`}
                 </p>
                 <p className="summary-today-location">
-                  {today.isPersonal ? t("PERSONAL JOURNEY", "個人足跡") : todayLocation}
+                  {today.isPersonal ? t("PERSONAL JOURNEY", "個人足跡") : todayLocation} · {today.km} km · {today.minutes} {t("min", "分鐘")} · {today.segments} {t("segments", "路段")}
                 </p>
               </div>
             </div>
           </div>
 
+          <div className="summary-mini-grid summary-native-mini-grid">
+            <div className="summary-mini-card">
+              <Footprints className="forecast-icon-accent" size={21} strokeWidth={3} />
+              <p className="summary-mini-label mt-4">{t("Weekly Distance", "每週距離")}</p>
+              <p className="summary-mini-value">
+                {summary.totalKm}
+                <span className="summary-history-unit">KM</span>
+              </p>
+            </div>
+
+            <div className="summary-mini-card">
+              <Gauge className="forecast-icon-accent" size={21} strokeWidth={3} />
+              <p className="summary-mini-label mt-4">{t("Weekly Load", "每週負荷")}</p>
+              <p className="summary-mini-value">
+                {summary.totalExposure}
+                <span className="summary-history-unit">{t("score", "分")}</span>
+              </p>
+            </div>
+
+            <div className="summary-mini-card">
+              <Activity className="forecast-icon-accent" size={21} strokeWidth={3} />
+              <p className="summary-mini-label mt-4">{t("Avg PM2.5", "平均 PM2.5")}</p>
+              <p className="summary-mini-value">
+                {summary.avgPm25}
+                <span className="summary-history-unit">µg/m³</span>
+              </p>
+            </div>
+
+            <div className="summary-mini-card">
+              <CalendarDays className="forecast-icon-accent" size={21} strokeWidth={3} />
+              <p className="summary-mini-label mt-4">{t("Active Days", "活動天數")}</p>
+              <p className="summary-mini-value">
+                {summary.activeDays}
+                <span className="summary-history-unit">/7</span>
+              </p>
+            </div>
+          </div>
+
           <div className="summary-native-heading-row">
-            <h2 className="summary-native-section-title">{t("HISTORY LOG (7D)", "歷史紀錄 (7天)")}</h2>
+            <div className="summary-native-heading-title">
+              <BarChart3 className="forecast-icon-accent" size={22} strokeWidth={3} />
+              <h2 className="summary-native-section-title">{t("HISTORY LOG (7D)", "歷史紀錄 (7天)")}</h2>
+            </div>
             <p className="summary-action-hint">{t("Tap to expand", "點擊展開")}</p>
           </div>
 
           <div className="summary-native-list">
             {summary.days.map((day) => {
-              const condition = pm25Condition(day.avgPm25, isChinese);
+              const risk = safeRisk(day);
               const expanded = expandedDay === day.id;
+              const maxInterval = Math.max(
+                1,
+                ...(day.intervals || []).map((item) => item.exposureLoad || 0)
+              );
 
               return (
                 <button
@@ -174,20 +225,19 @@ export default function SummaryPage() {
                         {summaryDayName(day, isChinese)}
                       </p>
                       <p className="summary-history-sub">
-                        {summaryDate(day, isChinese)}
+                        {summaryDate(day, isChinese)} · {day.segments} {t("segments", "路段")} · {day.hits} {t("GPS points", "GPS 點")}
                       </p>
                     </div>
 
                     <div className="summary-native-day-summary">
-                      <p className="summary-native-day-km">
-                        {day.km > 0 && day.km < 0.1 ? day.km.toFixed(2) : day.km.toFixed(1)} km
+                      <p className="summary-native-day-score">
+                        {day.exposureLoad}
+                        <span>{t("score", "分")}</span>
                       </p>
 
-                      <span className="summary-status-dot" style={{ backgroundColor: condition.color }} />
-
-                      <p className="summary-native-day-avg" style={{ color: condition.color }}>
-                        {day.avgPm25.toFixed(1)}
-                      </p>
+                      <span className="summary-risk-chip" style={{ backgroundColor: risk.color }}>
+                        {riskName(risk.label, isChinese)}
+                      </span>
 
                       {expanded ? (
                         <ChevronUp size={20} className="summary-expand-icon" />
@@ -197,26 +247,35 @@ export default function SummaryPage() {
                     </div>
                   </div>
 
+                  <div className="summary-progress-track summary-native-progress-track">
+                    <div
+                      className="summary-progress-fill"
+                      style={{
+                        width: `${Math.min(100, (day.exposureLoad / maxExposure) * 100)}%`,
+                        backgroundColor: risk.color,
+                      }}
+                    />
+                  </div>
+
                   {expanded && (
                     <div className="summary-native-details">
                       <div className="summary-native-chart-section">
                         <p className="summary-native-chart-title">{t("INTERVAL BREAKDOWN (6H)", "時段分析 (6小時)")}</p>
                         <div className="summary-native-chart-row">
                           {(day.intervals || []).map((interval) => {
-                            const barMeta = pm25Condition(interval.avgPm25, isChinese);
                             return (
                               <div key={interval.label} className="summary-native-bar-container">
                                 <div className="summary-native-bar-track">
                                   <div
                                     className="summary-native-bar-fill"
                                     style={{
-                                      height: `${Math.max(5, Math.min(100, ((interval.avgPm25 || 0) / 60) * 100))}%`,
-                                      backgroundColor: barMeta.color,
+                                      height: `${Math.max(5, Math.min(100, ((interval.exposureLoad || 0) / maxInterval) * 100))}%`,
+                                      backgroundColor: risk.color,
                                     }}
                                   />
                                 </div>
                                 <p className="summary-native-bar-label">{interval.label}</p>
-                                <p className="summary-native-bar-value">{interval.avgPm25 > 0 ? interval.avgPm25.toFixed(1) : "-"}</p>
+                                <p className="summary-native-bar-value">{interval.exposureLoad > 0 ? interval.exposureLoad : "-"}</p>
                               </div>
                             );
                           })}
@@ -225,21 +284,35 @@ export default function SummaryPage() {
 
                       <div className="summary-native-detail-grid">
                         <div>
-                          <p className="summary-expanded-label">{t("Peak", "最高值")}</p>
-                          <p className="summary-expanded-value-small">{day.peak.toFixed(1)}</p>
+                          <p className="summary-expanded-label">{t("Distance", "距離")}</p>
+                          <p className="summary-expanded-value-small">{day.km} km</p>
                         </div>
                         <div>
-                          <p className="summary-expanded-label">{t("Lowest", "最低值")}</p>
-                          <p className="summary-expanded-value-small">{day.low.toFixed(1)}</p>
+                          <p className="summary-expanded-label">{t("Avg", "平均")}</p>
+                          <p className="summary-expanded-value-small">{day.avgPm25}</p>
                         </div>
                         <div>
-                          <p className="summary-expanded-label">{t("Steps (est)", "步數 (預估)")}</p>
-                          <p className="summary-expanded-value-small">{(day.km * 1350).toFixed(0)}</p>
+                          <p className="summary-expanded-label">{t("Peak", "最高")}</p>
+                          <p className="summary-expanded-value-small">{day.peak}</p>
                         </div>
                         <div>
-                          <p className="summary-expanded-label">{t("Samples", "樣本數")}</p>
-                          <p className="summary-expanded-value-small">{day.hits}</p>
+                          <p className="summary-expanded-label">{t("Low", "最低")}</p>
+                          <p className="summary-expanded-value-small">{day.low}</p>
                         </div>
+                      </div>
+
+                      <div className="summary-native-source-row">
+                        <p className="summary-inline-meta">
+                          {day.hits} {t("GPS points", "GPS 點")} · {day.minutes} {t("min", "分鐘")}
+                        </p>
+
+                        <span className="summary-source-chip">
+                          {day.routeSource
+                            ? `${routeSourceName(day.routeSource, isChinese)} · ${transportName(day.routeMode, isChinese)}`
+                            : day.isPersonal
+                              ? t("phone GPS", "手機 GPS")
+                              : t("no data", "無資料")}
+                        </span>
                       </div>
 
                       <p className="summary-route-path">

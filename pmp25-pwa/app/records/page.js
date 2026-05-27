@@ -182,11 +182,22 @@ export default function RecordsPage() {
     setLoading(true);
 
     try {
-      const live = await fetchAllCityAirQuality();
-      setRows(live);
+      const [liveResult, hourlyResult] = await Promise.allSettled([
+        fetchAllCityAirQuality(),
+        fetchHourlyAirQuality(city, 7),
+      ]);
 
-      const hourly = await fetchHourlyAirQuality(city, 7);
-      setDailyPrediction(buildDailyPrediction(hourly));
+      if (liveResult.status === "fulfilled" && liveResult.value?.length) {
+        setRows(liveResult.value);
+      } else if (liveResult.status === "rejected") {
+        console.warn("Live records load failed:", liveResult.reason);
+      }
+
+      if (hourlyResult.status === "fulfilled") {
+        setDailyPrediction(buildDailyPrediction(hourlyResult.value));
+      } else {
+        console.warn("Forecast records load failed:", hourlyResult.reason);
+      }
     } catch (error) {
       console.warn("Records load failed:", error);
     } finally {
@@ -248,7 +259,6 @@ export default function RecordsPage() {
     windSpeed: selected?.windSpeed || 0,
   };
   const pollutionScore = Math.max(0, Math.min(100, 100 - ((selected?.pm25 || 0) * 1.5)));
-  const currentTemp = Number(selected?.temp);
   const healthProfileKey = JSON.stringify(healthProfile);
   const fallbackHealthAdvice = useMemo(() => (
     buildHealthAdvice({
@@ -265,7 +275,7 @@ export default function RecordsPage() {
   useEffect(() => {
     const pm25 = Number(selected?.pm25);
 
-    if (!Number.isFinite(pm25) || loading) {
+    if (!Number.isFinite(pm25)) {
       queueMicrotask(() => setAiHealthAdvice(null));
       return undefined;
     }
@@ -320,7 +330,6 @@ export default function RecordsPage() {
     healthProfile,
     healthProfileKey,
     isChinese,
-    loading,
     selected?.co,
     selected?.humidity,
     selected?.pm10,
@@ -372,6 +381,17 @@ export default function RecordsPage() {
     PLANNER: t("PLANNER", "規劃"),
     FORECAST: t("FORECAST", "預測"),
   };
+
+  const pageTitle = mode === "LIVE"
+    ? t("Records", "紀錄")
+    : mode === "PLANNER"
+      ? t("Planner", "規劃")
+      : t("Forecast", "預測");
+  const pageKicker = mode === "LIVE"
+    ? t("Archive", "檔案")
+    : mode === "PLANNER"
+      ? t("Route", "路線")
+      : t("Air outlook", "空氣趨勢");
 
   const regionLabel = {
     NORTH: regionName("NORTH", isChinese),
@@ -442,21 +462,30 @@ export default function RecordsPage() {
             <div className="records-weather-header">
               <WeatherBackground weather={liveWeather} hour={currentHour} />
               <div className="records-weather-fade" />
-              <button
-                onClick={loadData}
-                className="records-native-refresh"
-                title={t("Refresh records", "重新整理紀錄")}
-              >
-                <RefreshCw size={20} strokeWidth={3} className={loading ? "animate-spin" : ""} />
-              </button>
+
+              <div className="records-native-page-header records-native-page-header-overlay">
+                <div>
+                  <p className="screen-kicker">{pageKicker}</p>
+                  <h1 className="app-page-title">{pageTitle}</h1>
+                </div>
+
+                <button
+                  onClick={loadData}
+                  className="records-native-refresh"
+                  title={t("Refresh records", "重新整理紀錄")}
+                >
+                  <RefreshCw size={20} strokeWidth={3} className={loading ? "animate-spin" : ""} />
+                </button>
+              </div>
 
               <div className="records-weather-content">
                 <p className="records-weather-city">
                   {cityName(city, isChinese).toUpperCase()}
                 </p>
 
-                <p className="records-weather-temp">
-                  {Number.isFinite(currentTemp) ? Math.round(currentTemp) : 0}°
+                <p className="records-weather-temp records-weather-pm25">
+                  {selected?.pm25 ?? "-"}
+                  <span>PM2.5</span>
                 </p>
 
                 <div className="records-weather-condition">
@@ -488,6 +517,23 @@ export default function RecordsPage() {
             "records-native-content",
             mode === "LIVE" ? "records-native-content-live" : "",
           ].join(" ")}>
+            {mode !== "LIVE" && (
+              <div className="records-native-page-header records-native-page-header-standard">
+                <div>
+                  <p className="screen-kicker">{pageKicker}</p>
+                  <h1 className="app-page-title">{pageTitle}</h1>
+                </div>
+
+                <button
+                  onClick={loadData}
+                  className="records-native-refresh records-native-refresh-standard"
+                  title={t("Refresh records", "重新整理紀錄")}
+                >
+                  <RefreshCw size={20} strokeWidth={3} className={loading ? "animate-spin" : ""} />
+                </button>
+              </div>
+            )}
+
             <div className="records2-tabs">
               {tabs.map((tab) => (
                 <button
@@ -515,14 +561,7 @@ export default function RecordsPage() {
               </p>
             </div>
 
-            {loading ? (
-              <div className="records-native-loader">
-                <div className="refined-loader-ring">
-                  <span />
-                </div>
-                <p>{t("Fetching Atmosphere...", "正在取得空氣資料...").toUpperCase()}</p>
-              </div>
-            ) : mode === "LIVE" && (
+            {mode === "LIVE" && (
               <>
               <div className="records2-region-grid">
                 {regions.map((item) => (
@@ -592,7 +631,7 @@ export default function RecordsPage() {
             </>
           )}
 
-          {!loading && mode === "PLANNER" && (
+          {mode === "PLANNER" && (
             <>
               <div className="records-form-grid records-city-picker-grid">
                 <div className="records2-card records-city-picker-card">
@@ -734,7 +773,7 @@ export default function RecordsPage() {
             </>
           )}
 
-          {!loading && mode === "FORECAST" && (
+          {mode === "FORECAST" && (
             <div className="forecast-shell forecast-native-shell">
               <div className="forecast-native-header-row">
                 <p className="forecast-native-header-title">{t("CITY PREDICTION", "城市預測")}</p>

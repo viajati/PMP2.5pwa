@@ -29,16 +29,23 @@ export async function fetchAllCityAirQuality() {
     `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}` +
     `&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m&timezone=Asia/Taipei`;
 
-  const [aqRes, weatherRes] = await Promise.all([
+  const [aqResult, weatherResult] = await Promise.allSettled([
     fetchWithTimeout(aqUrl),
     fetchWithTimeout(weatherUrl),
   ]);
 
-  if (!aqRes.ok) throw new Error("Failed to fetch air quality");
-  if (!weatherRes.ok) throw new Error("Failed to fetch weather");
+  if (aqResult.status !== "fulfilled" || !aqResult.value.ok) {
+    throw new Error("Failed to fetch air quality");
+  }
+
+  const aqRes = aqResult.value;
+  const weatherRes =
+    weatherResult.status === "fulfilled" && weatherResult.value.ok
+      ? weatherResult.value
+      : null;
 
   const aqJson = await aqRes.json();
-  const weatherJson = await weatherRes.json();
+  const weatherJson = weatherRes ? await weatherRes.json() : null;
 
   return cityNames.map((city, index) => {
     const aqItem = Array.isArray(aqJson) ? aqJson[index] : aqJson;

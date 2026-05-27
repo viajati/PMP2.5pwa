@@ -142,22 +142,26 @@ export default function WeatherBackground({ weather, hour = 12 }) {
   const isMorning = safeHour >= 5 && safeHour < 11;
   const isNoon = safeHour >= 11 && safeHour < 18;
   const isRainy = code >= 51 || type === "raining" || type === "storm";
-  const isCloudy = code === 3 || code === 45 || code === 48 || isRainy || type === "cloudy";
-  const isSunny = (code >= 0 && code <= 2) || type === "sunny" || type === "partly";
+  const isPartly = type === "partly" || code === 1 || code === 2;
+  const isCloudy = code === 3 || code === 45 || code === 48 || type === "cloudy";
+  const isSunny = code === 0 || type === "sunny";
   const isWindy = speed > 7 || type === "windy";
-  const isSunnyFallback = isSunny || code === 1;
+  const isSunnyFallback = isSunny || isPartly;
 
   let variant = "sunny";
   if (isNight) variant = "night";
+  else if (type === "storm") variant = "storm";
   else if (isRainy) variant = "rain";
+  else if (isWindy) variant = "windy";
   else if (isCloudy) variant = "cloudy";
+  else if (isPartly) variant = "partly";
   else if (isNoon) variant = "sunny";
 
   return (
     <div className={`weather-background weather-background-${variant}`}>
       {isNight && <Stars />}
       {!isNight && isSunnyFallback && <SunOrb />}
-      {!isNight && !isSunny && !isRainy && ![3, 45, 48].includes(code) && (isMorning || isNoon) && (
+      {!isNight && !isSunnyFallback && !isRainy && ![3, 45, 48].includes(code) && (isMorning || isNoon) && (
         <SunOrb small />
       )}
       {isRainy && <Rain />}
