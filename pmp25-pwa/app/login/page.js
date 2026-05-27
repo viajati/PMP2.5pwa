@@ -7,13 +7,14 @@ import {
   EyeOff,
   Languages,
   Lock,
+  MapPin,
   Mail,
   Moon,
   Sun,
   UserRound,
 } from "lucide-react";
 import { CITY_COORDS, getNearestCity } from "@/lib/cities";
-import { fetchWeatherByCoords, weatherText } from "@/lib/webWeather";
+import { fetchWeatherByCoords } from "@/lib/webWeather";
 import { useAppPreferences } from "@/components/AppPreferencesProvider";
 import { useAuth } from "@/components/AuthProvider";
 import { isFacebookLoginEnabled } from "@/lib/firebaseClient";
@@ -31,18 +32,6 @@ function getDateString(date, chinese) {
   return localDateString(date, chinese);
 }
 
-function splitWeatherLine(line) {
-  const words = line.replace(".", "").split(" ");
-
-  if (words.length <= 4) return [line];
-
-  return [
-    words.slice(0, 2).join(" "),
-    words.slice(2, 5).join(" "),
-    words.slice(5).join(" ") + ".",
-  ];
-}
-
 function weatherSceneType(type) {
   if (type === "raining") return "rain";
   if (type === "storm") return "storm";
@@ -50,6 +39,26 @@ function weatherSceneType(type) {
   if (type === "cloudy") return "cloudy";
   if (type === "partly") return "partly";
   return "sunny";
+}
+
+function authenticWeatherText(type, city, chinese = false) {
+  const displayCity = localizedCityName(city, chinese);
+
+  if (chinese) {
+    if (type === "raining") return `現在 ${displayCity}\n正在下雨。`;
+    if (type === "cloudy") return `${displayCity} 的天空\n目前多雲。`;
+    if (type === "partly") return `${displayCity} 現在\n晴時多雲。`;
+    if (type === "windy") return `${displayCity} 現在\n風很大。`;
+    if (type === "storm") return `${displayCity} 有雷陣雨\n注意安全。`;
+    return `現在 ${displayCity}\n陽光燦爛。`;
+  }
+
+  if (type === "raining") return `It's raining\nin ${displayCity}\nright now.`;
+  if (type === "cloudy") return `The sky is\ncloudy in ${displayCity}.`;
+  if (type === "partly") return `It's partly\ncloudy in ${displayCity}.`;
+  if (type === "windy") return `It's quite\nwindy in ${displayCity}.`;
+  if (type === "storm") return `Thunderstorms\nin ${displayCity}\nStay safe.`;
+  return `It's beautifully\nsunny in ${displayCity}.`;
 }
 
 export default function LoginPage() {
@@ -148,7 +157,7 @@ export default function LoginPage() {
   }, [authReady, router, user]);
 
   const displayCityName = localizedCityName(cityName, isChinese);
-  const weatherLines = splitWeatherLine(weatherText(weatherType, cityName, isChinese));
+  const weatherLines = authenticWeatherText(weatherType, cityName, isChinese).split("\n");
   const weatherTime =
     currentTime && (currentTime.getHours() >= 18 || currentTime.getHours() < 6)
       ? "night"
@@ -293,10 +302,8 @@ export default function LoginPage() {
               </div>
 
               <div className="login-location-pill">
-                <span className="text-sm">📍</span>
-                <span className="ml-2">
-                  {displayCityName}
-                </span>
+                <MapPin size={14} strokeWidth={3} />
+                <span>{displayCityName}</span>
               </div>
             </div>
           </section>
@@ -351,6 +358,7 @@ export default function LoginPage() {
                     value={displayName}
                     onChange={(event) => setDisplayName(event.target.value)}
                     placeholder={t("Username", "使用者名稱")}
+                    required
                   />
                 </div>
               )}
@@ -394,7 +402,11 @@ export default function LoginPage() {
               </div>
 
               <button className="login-submit" disabled={submitting || !authReady}>
-                {submitting ? t("Please wait", "請稍候") : isLogin ? t("Log In", "登入") : t("Register", "註冊")}
+                {submitting
+                  ? t("PROCEEDING...", "處理中...")
+                  : isLogin
+                    ? t("LOG IN", "立即登入")
+                    : t("REGISTER", "立即註冊")}
               </button>
 
               {isLogin && (
