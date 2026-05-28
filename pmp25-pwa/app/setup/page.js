@@ -48,6 +48,10 @@ function savePrefs(nextPrefs) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(nextPrefs));
 }
 
+function cleanText(value) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
 function ToggleSwitch({ checked, onChange }) {
   return (
     <button
@@ -119,6 +123,7 @@ export default function SetupPage() {
   const { prefs: globalPrefs, updatePrefs: updateGlobalPrefs, t } = useAppPreferences();
   const {
     user,
+    account,
     firebaseReady,
     logout: logoutUser,
     updateAccountProfile,
@@ -126,6 +131,9 @@ export default function SetupPage() {
   const [prefs, setPrefs] = useState(DEFAULT_PREFS);
   const [draft, setDraft] = useState(DEFAULT_PREFS);
   const [status, setStatus] = useState("");
+  const authDisplayName = cleanText(account?.displayName) || cleanText(user?.displayName);
+  const authEmail = account?.email || user?.email || "";
+  const authPhotoURL = account?.photoURL || user?.photoURL || "";
 
   useEffect(() => {
     let cancelled = false;
@@ -149,11 +157,11 @@ export default function SetupPage() {
     queueMicrotask(() => {
       if (cancelled) return;
 
-      const accountName = user?.displayName?.trim() || "";
       const identityPrefs = {
         ...globalPrefs,
-        name: accountName || globalPrefs.name || "",
-        email: user?.email || "",
+        name: authDisplayName || globalPrefs.name || "",
+        email: authEmail,
+        avatar: globalPrefs.avatar || authPhotoURL,
       };
 
       setPrefs(identityPrefs);
@@ -163,7 +171,12 @@ export default function SetupPage() {
     return () => {
       cancelled = true;
     };
-  }, [globalPrefs, user?.displayName, user?.email]);
+  }, [
+    authDisplayName,
+    authEmail,
+    authPhotoURL,
+    globalPrefs,
+  ]);
 
   function updatePrefs(patch) {
     const next = { ...prefs, ...patch };
@@ -186,13 +199,13 @@ export default function SetupPage() {
         return;
       }
 
-      updatePrefs({
-        name: cleanName,
-      });
-
       if (firebaseReady && user) {
         await updateAccountProfile({ displayName: cleanName });
       }
+
+      updatePrefs({
+        name: cleanName,
+      });
 
       setStatus(firebaseReady && user
         ? t("Profile identity saved and synced.", "個人識別已儲存並同步。")
@@ -318,10 +331,10 @@ export default function SetupPage() {
               </span>
             </div>
             <h1 className="setup-user-name">
-              {(prefs.name || user?.displayName || (isChinese ? "個人檔案" : "Profile")).toUpperCase()}
+              {(authDisplayName || prefs.name || (isChinese ? "個人檔案" : "Profile")).toUpperCase()}
             </h1>
             <p className="setup-user-status">
-              {(user?.email || (isChinese ? "未登入帳號" : "FREE ACCOUNT")).toUpperCase()}
+              {(authEmail || (isChinese ? "未登入帳號" : "FREE ACCOUNT")).toUpperCase()}
             </p>
           </div>
 

@@ -3484,6 +3484,7 @@ button:disabled {
   width: 100%;
   height: 32px;
   margin-top: 20px;
+  -webkit-appearance: none;
   appearance: none;
   background: transparent;
   accent-color: var(--range-color, var(--app-cyan));
@@ -3506,12 +3507,14 @@ button:disabled {
       rgba(142, 142, 147, 0.18) 100%
     );
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.08);
+  transition: background 180ms ease;
 }
 
 .theme-range::-webkit-slider-thumb {
   width: 26px;
   height: 26px;
   margin-top: -7px;
+  -webkit-appearance: none;
   appearance: none;
   border: 4px solid #fff;
   border-radius: var(--radius-round);

@@ -280,9 +280,20 @@ export function AuthProvider({ children }) {
 
     await runAuth(async () => {
       await updateProfile(firebaseAuth.currentUser, patch);
+
       if (isAppVerifiedUser(firebaseAuth.currentUser)) {
         await upsertUserAccount(firebaseAuth.currentUser);
       }
+
+      setAccount((current) => ({
+        ...(current || {}),
+        uid: firebaseAuth.currentUser.uid,
+        email: firebaseAuth.currentUser.email || current?.email || "",
+        displayName: firebaseAuth.currentUser.displayName || current?.displayName || "",
+        photoURL: firebaseAuth.currentUser.photoURL || current?.photoURL || "",
+        emailVerified: isAppVerifiedUser(firebaseAuth.currentUser),
+      }));
+
       return { user: firebaseAuth.currentUser };
     });
   }, [runAuth]);

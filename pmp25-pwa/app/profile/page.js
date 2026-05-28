@@ -65,6 +65,10 @@ function saveJson(key, value) {
   localStorage.setItem(key, JSON.stringify(value));
 }
 
+function cleanText(value) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
 function ageStory(level, chinese) {
   if (level === 1) return chinese ? "年輕的萌芽，開始認識自己的空氣節奏。" : "A young seedling, starting your journey.";
   if (level === 2) return chinese ? "正值盛放階段，帶著能量探索日常。" : "In the bloom of life, exploring with energy.";
@@ -143,12 +147,16 @@ function SliderBlock({
   colorClass = "",
   onChange,
 }) {
-  const progress = ((value - min) / (max - min)) * 100;
+  const numericValue = Number(value);
+  const safeValue = Math.min(max, Math.max(min, Number.isFinite(numericValue) ? numericValue : min));
+  const progress = max === min ? 0 : ((safeValue - min) / (max - min)) * 100;
+  const rangeStyle = { "--range-progress": `${progress}%` };
+  const activeLabel = labels[safeValue - min] || labels[0] || "";
 
   return (
     <div
       className="slider-card profile-slider-card"
-      style={{ "--range-progress": `${progress}%` }}
+      style={rangeStyle}
     >
       <div className="slider-head">
         <p className="slider-title">
@@ -156,7 +164,7 @@ function SliderBlock({
         </p>
 
         <span className="slider-chip">
-          {labels[value - min]}
+          {activeLabel}
         </span>
       </div>
 
@@ -165,9 +173,10 @@ function SliderBlock({
         min={min}
         max={max}
         step="1"
-        value={value}
+        value={safeValue}
         onChange={(e) => onChange(Number(e.target.value))}
         className={["theme-range", colorClass].join(" ")}
+        style={rangeStyle}
       />
 
       <div className="slider-label-row">
@@ -186,8 +195,11 @@ function SliderBlock({
 
 export default function ProfilePage() {
   const { prefs: appPrefs, updatePrefs, t } = useAppPreferences();
-  const { user, firebaseReady } = useAuth();
+  const { user, account, firebaseReady } = useAuth();
   const isChinese = appPrefs.chinese;
+  const authDisplayName = cleanText(account?.displayName) || cleanText(user?.displayName);
+  const authEmail = account?.email || user?.email || "";
+  const authPhotoURL = account?.photoURL || user?.photoURL || "";
   const [prefs, setPrefs] = useState(defaultPrefs);
   const [profile, setProfile] = useState(defaultProfile);
   const [saved, setSaved] = useState(false);
@@ -215,15 +227,20 @@ export default function ProfilePage() {
       if (cancelled) return;
 
       setPrefs({
-        name: appPrefs.name || user?.displayName || "",
-        avatar: appPrefs.avatar || user?.photoURL || "",
+        name: authDisplayName || cleanText(appPrefs.name),
+        avatar: appPrefs.avatar || authPhotoURL,
       });
     });
 
     return () => {
       cancelled = true;
     };
-  }, [appPrefs.avatar, appPrefs.name, user?.displayName, user?.photoURL]);
+  }, [
+    appPrefs.avatar,
+    appPrefs.name,
+    authDisplayName,
+    authPhotoURL,
+  ]);
 
   useEffect(() => {
     if (!firebaseReady || !user?.uid) return undefined;
@@ -286,9 +303,12 @@ export default function ProfilePage() {
   }
 
   const profileName = useMemo(() => (
-    prefs.name || user?.displayName || user?.email?.split("@")[0] || ""
-  ).trim(), [prefs.name, user?.displayName, user?.email]);
-  const profileSubtitle = user?.email || t("Health profile", "健康配置");
+    authDisplayName
+    || cleanText(appPrefs.name)
+    || cleanText(prefs.name)
+    || cleanText(authEmail.split("@")[0])
+  ), [appPrefs.name, authDisplayName, authEmail, prefs.name]);
+  const profileSubtitle = authEmail || t("Health profile", "健康配置");
 
   return (
     <main className="app-root">
@@ -334,7 +354,7 @@ export default function ProfilePage() {
               <div className="profile-native-header-copy">
                 <p className="profile-native-greeting">
                   {profileName
-                    ? `${t("Hi", "嗨")}，${profileName}!`
+                    ? (isChinese ? `嗨，${profileName}!` : `Hi, ${profileName}!`)
                     : t("Personalize your profile", "個人化你的檔案")}
                 </p>
                 <h1 className="profile-native-title">{t("Personalize", "個人化")}</h1>
