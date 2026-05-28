@@ -78,22 +78,6 @@ function getWeatherMeta(rawCode, rawWindSpeed = 0) {
   return { Icon: Sun, label: "sunny", type: "sunny" };
 }
 
-function getHourFromFetchTime(timeValue) {
-  if (!timeValue || typeof timeValue !== "string") {
-    return new Date().getHours();
-  }
-
-  const timePart = timeValue.includes(" ")
-    ? timeValue.split(" ")[1]
-    : timeValue.includes("T")
-      ? timeValue.split("T")[1]
-      : timeValue;
-
-  const hour = Number(timePart?.split(":")?.[0]);
-
-  return Number.isFinite(hour) ? hour : new Date().getHours();
-}
-
 function regionFor(city) {
   for (const [region, cities] of Object.entries(REGIONS)) {
     if (cities.includes(city)) return region;
@@ -257,14 +241,14 @@ export default function RecordsPage() {
   }, [city]);
 
   const selected = rows.find((item) => item.county === city) || rows[0];
-  const currentHour = getHourFromFetchTime(selected?.time);
+  const currentHour = new Date().getHours();
   const weather = getWeatherMeta(selected?.weatherCode, selected?.windSpeed);
   const WeatherIcon = weather.Icon;
   const caqi = caqiFrom(selected?.pm25 || 0, selected?.pm10 || 0, selected?.co || 0);
   const liveWeather = {
     type: normalizeWeatherBackgroundType(weather.type),
-    weatherCode: selected?.weatherCode || 0,
-    windSpeed: selected?.windSpeed || 0,
+    weatherCode: Number.isFinite(Number(selected?.weatherCode)) ? Number(selected.weatherCode) : 0,
+    windSpeed: Number.isFinite(Number(selected?.windSpeed)) ? Number(selected.windSpeed) : 0,
   };
   const pollutionScore = Math.max(0, Math.min(100, 100 - ((selected?.pm25 || 0) * 1.5)));
   const healthProfileKey = JSON.stringify(healthProfile);

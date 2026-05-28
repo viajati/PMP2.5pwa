@@ -28,12 +28,14 @@ function SunOrb({ small = false }) {
 }
 
 function PremiumCloud({ y, delay, scale, opacity = 0.72, duration = 34000 }) {
+  const cloudDelay = delay ? -delay : 0;
+
   return (
     <div
       className="weather-cloud-wrapper"
       style={{
         "--cloud-y": `${y}px`,
-        "--cloud-delay": `${delay}ms`,
+        "--cloud-delay": `${cloudDelay}ms`,
         "--cloud-scale": scale,
         "--cloud-opacity": opacity,
         "--cloud-duration": `${duration}ms`,
@@ -167,13 +169,16 @@ function normalizeWeatherType(type = "") {
   return normalized;
 }
 
-export default function WeatherBackground({ weather, hour = 12 }) {
+export default function WeatherBackground({ weather, hour }) {
   const rawCode = Number(weather?.weatherCode);
   const code = Number.isFinite(rawCode) ? rawCode : 0;
+
   const rawSpeed = Number(weather?.windSpeed);
   const speed = Number.isFinite(rawSpeed) ? rawSpeed : 0;
+
   const type = normalizeWeatherType(weather?.type || "sunny");
-  const safeHour = Number.isFinite(hour) ? hour : 12;
+  const numericHour = Number(hour);
+  const safeHour = Number.isFinite(numericHour) ? numericHour : new Date().getHours();
 
   const isNight = safeHour >= 18 || safeHour < 5;
   const isRainy = [
@@ -195,7 +200,7 @@ export default function WeatherBackground({ weather, hour = 12 }) {
   else if (isCloudy) condition = "cloudy";
   else if (isPartly) condition = "partly";
 
-  const variant = isNight && condition === "sunny" ? "night" : condition;
+  const variant = isNight ? "night" : condition;
 
   return (
     <div
@@ -206,7 +211,7 @@ export default function WeatherBackground({ weather, hour = 12 }) {
       ].join(" ")}
       data-weather-condition={condition}
     >
-      {isNight && condition === "sunny" && <Stars />}
+      {isNight && <Stars />}
       {!isNight && (condition === "sunny" || condition === "partly") && <SunOrb small={condition === "partly"} />}
       {condition === "sunny" && <Clouds density="sunny" />}
       {condition === "partly" && <Clouds density="partly" />}

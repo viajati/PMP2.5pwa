@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   Activity,
@@ -105,9 +105,12 @@ function fitnessStory(level, chinese) {
   return chinese ? "正在建立溫柔而穩固的基礎。" : "You are nurturing a gentle foundation of strength.";
 }
 
-function StoryCard({ icon: Icon, title, text }) {
+function StoryCard({ icon: Icon, title, text, delay = 0 }) {
   return (
-    <div className="profile-native-status-box">
+    <div
+      className="profile-native-status-box"
+      style={{ "--story-delay": `${delay}ms` }}
+    >
       <div className="profile-native-box-gradient">
         <Icon size={21} strokeWidth={2.8} />
 
@@ -140,8 +143,13 @@ function SliderBlock({
   colorClass = "",
   onChange,
 }) {
+  const progress = ((value - min) / (max - min)) * 100;
+
   return (
-    <div className="slider-card">
+    <div
+      className="slider-card profile-slider-card"
+      style={{ "--range-progress": `${progress}%` }}
+    >
       <div className="slider-head">
         <p className="slider-title">
           {title}
@@ -277,6 +285,11 @@ export default function ProfilePage() {
     }
   }
 
+  const profileName = useMemo(() => (
+    prefs.name || user?.displayName || user?.email?.split("@")[0] || ""
+  ).trim(), [prefs.name, user?.displayName, user?.email]);
+  const profileSubtitle = user?.email || t("Health profile", "健康配置");
+
   return (
     <main className="app-root">
       <div className="phone-frame relative min-h-screen overflow-y-auto profile-native-frame">
@@ -290,7 +303,7 @@ export default function ProfilePage() {
                 strokeWidth={2.5}
                 style={{
                   "--leaf-x": `${(index * 43 + 13) % 100}%`,
-                  "--leaf-delay": `${index * 1000}ms`,
+                  "--leaf-delay": `${index * -1600}ms`,
                 }}
               />
             ))}
@@ -318,11 +331,16 @@ export default function ProfilePage() {
                 </span>
               </button>
 
-              <div className="min-w-0">
+              <div className="profile-native-header-copy">
                 <p className="profile-native-greeting">
-                  {t("Hi", "嗨")}，{prefs.name || user?.email?.split("@")[0] || t("User", "使用者")}!
+                  {profileName
+                    ? `${t("Hi", "嗨")}，${profileName}!`
+                    : t("Personalize your profile", "個人化你的檔案")}
                 </p>
                 <h1 className="profile-native-title">{t("Personalize", "個人化")}</h1>
+                <p className="profile-native-subtitle">
+                  {profileSubtitle}
+                </p>
               </div>
             </div>
 
@@ -332,12 +350,14 @@ export default function ProfilePage() {
                   icon={CalendarDays}
                   title={t("Era", "年齡")}
                   text={ageStory(profile.ageLevel, isChinese)}
+                  delay={40}
                 />
 
                 <StoryCard
                   icon={Heart}
                   title={t("Vitality", "敏感度")}
                   text={vitalityStory(profile.conditions, isChinese)}
+                  delay={120}
                 />
               </div>
 
@@ -346,12 +366,14 @@ export default function ProfilePage() {
                   icon={Activity}
                   title={t("Lifestyle", "生活型態")}
                   text={activityStory(profile.activityLevel, isChinese)}
+                  delay={200}
                 />
 
                 <StoryCard
                   icon={ShieldCheck}
                   title={t("Strength", "體能")}
                   text={fitnessStory(profile.fitnessLevel, isChinese)}
+                  delay={280}
                 />
               </div>
             </div>
@@ -392,6 +414,7 @@ export default function ProfilePage() {
                       key={item.id}
                       type="button"
                       onClick={() => toggleCondition(item.id)}
+                      aria-pressed={active}
                       className={[
                         "condition-chip",
                         active
