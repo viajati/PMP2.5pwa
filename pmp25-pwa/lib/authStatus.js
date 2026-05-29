@@ -1,4 +1,4 @@
-const VERIFIED_PROVIDER_IDS = new Set(["google.com"]);
+const VERIFIED_PROVIDER_IDS = new Set(["google.com", "facebook.com"]);
 
 export function userProviderIds(user) {
   return user?.providerData?.map((provider) => provider.providerId) || [];

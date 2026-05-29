@@ -2872,6 +2872,84 @@ button:disabled {
   line-height: 1.35;
 }
 
+.legal-frame {
+  background:
+    radial-gradient(circle at 20% 0%, rgba(0, 210, 255, 0.18), transparent 32%),
+    linear-gradient(180deg, var(--app-bg-strong), var(--app-bg));
+}
+
+.legal-page {
+  padding: calc(var(--safe-top) + 42px) 24px calc(var(--safe-bottom) + 56px);
+}
+
+.legal-updated {
+  margin-top: 8px;
+  color: var(--text-soft);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.legal-card,
+.legal-section {
+  margin-top: 18px;
+  border: 1px solid var(--border-strong);
+  border-radius: 24px;
+  background: var(--glass-bg);
+  padding: 20px;
+  box-shadow: var(--shadow-soft);
+}
+
+.legal-card p,
+.legal-section p,
+.legal-section li,
+.legal-note {
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 750;
+  line-height: 1.65;
+}
+
+.legal-section h2 {
+  margin: 0 0 10px;
+  color: var(--text-main);
+  font-size: 15px;
+  font-weight: 950;
+  letter-spacing: 0.02em;
+}
+
+.legal-section p + p {
+  margin-top: 12px;
+}
+
+.legal-section ol {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.legal-section a,
+.legal-back-link {
+  color: var(--app-cyan);
+  font-weight: 950;
+  text-decoration: none;
+}
+
+.legal-note {
+  margin-top: 18px;
+  text-align: center;
+}
+
+.legal-link-row {
+  display: flex;
+  justify-content: center;
+  gap: 18px;
+}
+
+.legal-back-link {
+  display: block;
+  margin-top: 24px;
+  text-align: center;
+}
+
 /* Verification */
 .verification-card {
   margin-top: 56px;
@@ -3661,6 +3739,24 @@ html[data-theme="dark"] .profile-native-frame {
   padding: calc(var(--safe-top) + 20px) 25px 26px;
 }
 
+.profile-native-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 22px;
+  color: white;
+}
+
+.profile-native-page-header .screen-kicker {
+  color: rgba(255, 255, 255, 0.74);
+}
+
+.profile-native-page-header .app-page-title {
+  color: white;
+  text-shadow: 0 3px 14px rgba(0, 0, 0, 0.24);
+}
+
 .profile-native-header-top {
   display: flex;
   align-items: center;
@@ -3989,8 +4085,8 @@ html[data-theme="light"] .records2-page {
   --records-weather-bottom: #121212;
   position: relative;
   width: 100%;
-  height: auto;
-  min-height: 560px;
+  height: clamp(456px, 52dvh, 500px);
+  min-height: 456px;
   overflow: hidden;
   border-radius: 0 0 36px 36px;
 }
@@ -4023,11 +4119,11 @@ html[data-theme="light"] .records-weather-header {
   position: relative;
   z-index: 3;
   display: flex;
-  min-height: 560px;
+  min-height: 100%;
   flex-direction: column;
   align-items: center;
-  padding-top: calc(var(--safe-top) + 92px);
-  padding-bottom: 118px;
+  padding-top: calc(var(--safe-top) + 82px);
+  padding-bottom: 74px;
   box-sizing: border-box;
   text-align: center;
 }
@@ -4071,7 +4167,7 @@ html[data-theme="light"] .records-weather-header {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 22px;
+  margin-bottom: 12px;
   color: white;
   font-size: 20px;
   font-weight: 700;
@@ -4085,9 +4181,9 @@ html[data-theme="light"] .records-weather-header {
   width: min(360px, calc(100% - 44px));
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
-  margin: 18px auto 0;
-  min-height: 112px;
-  padding: 14px 0 56px;
+  margin: 10px auto 0;
+  min-height: 96px;
+  padding: 8px 0 30px;
   align-items: center;
   overflow: visible;
 }
@@ -4214,7 +4310,7 @@ html[data-theme="light"] .records-weather-header {
 }
 
 .records-native-content-live {
-  margin-top: -36px;
+  margin-top: -30px;
 }
 
 .records-native-content .records2-tabs {
@@ -4933,7 +5029,12 @@ html[data-theme="light"] .summary-native-frame {
 
 .summary-native-scroll {
   min-height: 100dvh;
-  padding: calc(var(--safe-top) + 60px) 20px calc(var(--bottom-nav-height) + var(--bottom-nav-offset) + 68px);
+  padding: 0 20px calc(var(--bottom-nav-height) + var(--bottom-nav-offset) + 68px);
+}
+
+.summary-native-page-header {
+  padding-right: 0;
+  padding-left: 0;
 }
 
 .summary-today-card {

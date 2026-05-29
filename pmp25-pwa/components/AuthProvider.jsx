@@ -56,7 +56,12 @@ const AuthContext = createContext({
 });
 
 function providerFor(provider) {
-  if (provider === "facebook") return new FacebookAuthProvider();
+  if (provider === "facebook") {
+    const facebookProvider = new FacebookAuthProvider();
+    facebookProvider.addScope("email");
+    facebookProvider.addScope("public_profile");
+    return facebookProvider;
+  }
 
   const googleProvider = new GoogleAuthProvider();
   googleProvider.addScope("email");
@@ -93,8 +98,10 @@ function friendlyError(error) {
     "auth/invalid-credential": "The email or password is not correct.",
     "auth/invalid-email": "Please enter a valid email address.",
     "auth/missing-password": "Please enter a password.",
+    "auth/operation-not-allowed": "Enable this sign-in provider in Firebase Authentication first.",
     "auth/popup-blocked": "The sign-in popup was blocked by the browser.",
     "auth/popup-closed-by-user": "The sign-in popup was closed before finishing.",
+    "auth/account-exists-with-different-credential": "This email already uses another sign-in method. Log in with the original method first.",
     "auth/too-many-requests": "Too many attempts. Please try again later.",
     "auth/unauthorized-domain": "Add this app domain in Firebase Authentication authorized domains.",
     "auth/unauthorized-continue-uri": "Add this app domain in Firebase Authentication authorized domains.",

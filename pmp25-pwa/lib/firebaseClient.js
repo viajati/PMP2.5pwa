@@ -17,8 +17,10 @@ export const firebaseMissingConfig = Object.entries(firebaseConfig)
   .map(([key]) => key);
 
 export const isFirebaseConfigured = firebaseMissingConfig.length === 0;
+export const facebookAppId =
+  process.env.NEXT_PUBLIC_FACEBOOK_APP_ID || "1150286524831561";
 export const isFacebookLoginEnabled =
-  process.env.NEXT_PUBLIC_ENABLE_FACEBOOK_LOGIN === "true";
+  process.env.NEXT_PUBLIC_ENABLE_FACEBOOK_LOGIN === "true" || Boolean(facebookAppId);
 
 export const firebaseApp = isFirebaseConfigured
   ? getApps().length > 0

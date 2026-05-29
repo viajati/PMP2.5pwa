@@ -106,6 +106,26 @@ export default function SummaryPage() {
     <main className="app-root">
       <div className="phone-frame relative summary-native-frame">
         <section className="summary-native-scroll">
+          <div className="records-native-page-header records-native-page-header-standard summary-native-page-header">
+            <div>
+              <p className="screen-kicker">{t("Telemetry", "數據")}</p>
+              <h1 className="app-page-title">{t("Summary", "總覽")}</h1>
+            </div>
+
+            <button
+              type="button"
+              onClick={refreshSummary}
+              className="records-native-refresh records-native-refresh-standard"
+              title={t("Refresh summary", "重新整理總覽")}
+            >
+              <RefreshCw
+                size={20}
+                strokeWidth={3}
+                className={summaryLoading ? "animate-spin" : ""}
+              />
+            </button>
+          </div>
+
           <div className="summary-today-card">
             <div className="summary-today-gradient">
               <div className="summary-today-header">

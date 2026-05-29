@@ -6,7 +6,13 @@ import { useAuth } from "@/components/AuthProvider";
 import { useAppPreferences } from "@/components/AppPreferencesProvider";
 import { isAppVerifiedUser } from "@/lib/authStatus";
 
-const PUBLIC_PATHS = new Set(["/login", "/verify", "/reset-password"]);
+const PUBLIC_PATHS = new Set([
+  "/login",
+  "/verify",
+  "/reset-password",
+  "/privacy",
+  "/data-deletion",
+]);
 
 function isPublicPath(pathname) {
   return PUBLIC_PATHS.has(pathname);

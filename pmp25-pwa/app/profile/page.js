@@ -330,7 +330,12 @@ export default function ProfilePage() {
           </div>
 
           <div className="profile-native-fixed-header">
-            <div className="profile-native-header-top">
+            <div className="profile-native-page-header">
+              <div>
+                <p className="screen-kicker">{t("Identity", "身份")}</p>
+                <h1 className="app-page-title">{t("Profile", "個人檔案")}</h1>
+              </div>
+
               <Link
                 href="/setup"
                 className="profile-native-back"
@@ -338,7 +343,9 @@ export default function ProfilePage() {
               >
                 <ArrowLeft size={20} strokeWidth={3} />
               </Link>
+            </div>
 
+            <div className="profile-native-header-top">
               <button
                 type="button"
                 className="profile-native-avatar-wrapper"
