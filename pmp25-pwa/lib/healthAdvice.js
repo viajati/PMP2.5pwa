@@ -1,7 +1,33 @@
 const SENSITIVE_CONDITIONS = ["asthma", "cardio", "sensitivity", "dust", "allergies"];
+const CONDITION_LABELS = {
+  asthma: "asthma",
+  cardio: "heart sensitivity",
+  sensitivity: "air sensitivity",
+  dust: "dust allergy",
+  allergies: "pollen allergy",
+  outdoor: "outdoor work",
+};
+const CONDITION_LABELS_ZH = {
+  asthma: "氣喘",
+  cardio: "心血管照護",
+  sensitivity: "空氣敏感",
+  dust: "塵蟎過敏",
+  allergies: "花粉過敏",
+  outdoor: "戶外工作",
+};
 
 function hasAny(profile, ids) {
   return ids.some((id) => profile.conditions?.includes(id));
+}
+
+function profileFocus(profile, chinese = false) {
+  const labels = (profile.conditions || [])
+    .map((id) => chinese ? CONDITION_LABELS_ZH[id] : CONDITION_LABELS[id])
+    .filter(Boolean)
+    .slice(0, 3);
+
+  if (labels.length > 0) return labels.join(chinese ? "、" : ", ");
+  return chinese ? "你的活動與體能設定" : "your activity and fitness profile";
 }
 
 function riskScore(pm25, weatherType, profile) {
@@ -48,17 +74,23 @@ function englishAdvice({ city, pm25, weatherLabel, weatherType, profile }) {
     actions.push("Plan indoor breaks during long outdoor work blocks.");
   }
 
+  if (profile.fitnessLevel <= 1 || profile.ageLevel >= 4) {
+    actions.push("Choose a gentler pace and add recovery time if you need to be outside.");
+  }
+
   if (weatherType === "windy") {
     actions.push("Wind can raise dust exposure, so eye and mask protection may help.");
   }
+
+  const focus = profileFocus(profile);
 
   return {
     level,
     label: level === "high" ? "Personal caution" : level === "moderate" ? "Watch closely" : "Good to go",
     title: `${city}: ${pm25} µg/m³ with ${weatherLabel}`,
     summary: sensitive
-      ? "Your health profile makes this reading more important than the city average alone."
-      : "This suggestion combines the live reading with your activity and fitness profile.",
+      ? `Because your profile includes ${focus}, this reading matters more than the city average alone.`
+      : `This suggestion combines the live reading with ${focus}.`,
     actions,
   };
 }
@@ -84,17 +116,23 @@ function chineseAdvice({ city, pm25, weatherLabel, weatherType, profile }) {
     actions.push("長時間戶外工作時，安排室內休息時段。");
   }
 
+  if (profile.fitnessLevel <= 1 || profile.ageLevel >= 4) {
+    actions.push("若需要外出，建議降低步調並保留恢復時間。");
+  }
+
   if (weatherType === "windy") {
     actions.push("有風時粉塵暴露可能增加，口罩與眼部防護會更有幫助。");
   }
+
+  const focus = profileFocus(profile, true);
 
   return {
     level,
     label: level === "high" ? "個人警戒" : level === "moderate" ? "需要留意" : "可正常活動",
     title: `${city}：${pm25} µg/m³，${weatherLabel}`,
     summary: sensitive
-      ? "你的健康設定會讓這個數值比城市平均更需要注意。"
-      : "此建議會結合即時空氣、活動量與體能設定。",
+      ? `因為你的設定包含${focus}，這個數值會比城市平均更需要留意。`
+      : `此建議會結合即時空氣與${focus}。`,
     actions,
   };
 }

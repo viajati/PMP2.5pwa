@@ -2,7 +2,7 @@ import Link from "next/link";
 
 export const metadata = {
   title: "Privacy Policy",
-  description: "Privacy policy for PMP2.5.",
+  description: "Privacy policy for PM2.5.",
 };
 
 export default function PrivacyPage() {
@@ -10,13 +10,13 @@ export default function PrivacyPage() {
     <main className="app-root">
       <div className="phone-frame relative min-h-screen overflow-y-auto legal-frame">
         <section className="legal-page">
-          <p className="screen-kicker">PMP2.5</p>
+          <p className="screen-kicker">PM2.5</p>
           <h1 className="app-page-title mt-2">Privacy Policy</h1>
           <p className="legal-updated">Last updated: May 29, 2026</p>
 
           <div className="legal-card">
             <p>
-              PMP2.5 is a progressive web app for estimating personal PM2.5
+              PM2.5 is a progressive web app for estimating personal PM2.5
               exposure, viewing Taiwan air-quality information, planning routes,
               and saving profile preferences.
             </p>
@@ -73,7 +73,7 @@ export default function PrivacyPage() {
           <div className="legal-section">
             <h2>Contact</h2>
             <p>
-              For privacy or deletion requests, contact the PMP2.5 app owner
+              For privacy or deletion requests, contact the PM2.5 app owner
               using the contact email configured in the Meta/Firebase app
               dashboard.
             </p>

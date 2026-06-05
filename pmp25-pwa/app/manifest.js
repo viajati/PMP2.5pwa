@@ -1,7 +1,7 @@
 export default function manifest() {
   return {
-    name: "PMP2.5 Exposure Tracker",
-    short_name: "PMP2.5",
+    name: "PM2.5 Exposure Tracker",
+    short_name: "PM2.5",
     description: "Track PM2.5 exposure, routes, records, summaries, and profile settings.",
     start_url: "/home",
     scope: "/",

@@ -1,4 +1,5 @@
 import { cleanHealthProfile } from "@/lib/healthProfile";
+import { buildHealthAdvice } from "@/lib/healthAdvice";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -72,6 +73,22 @@ function sanitizeAdvice(value, language) {
   };
 }
 
+function fallbackAdvice(payload, source = "profile-rules") {
+  const advice = buildHealthAdvice({
+    city: payload.displayCity || payload.city,
+    pm25: payload.air?.pm25 || 0,
+    weatherLabel: payload.air?.weather || "",
+    weatherType: payload.air?.weatherType || "",
+    profile: payload.profile,
+    chinese: payload.language === "zh-TW",
+  });
+
+  return {
+    ...advice,
+    source,
+  };
+}
+
 function buildPrompt(payload) {
   const chinese = payload.language === "zh-TW";
   const language = chinese ? "Traditional Chinese" : "English";
@@ -104,17 +121,7 @@ JSON schema:
 }
 
 export async function POST(request) {
-  const apiKey = process.env.GEMINI_API_KEY;
-
-  if (!apiKey) {
-    return Response.json(
-      { error: "GEMINI_API_KEY is not configured." },
-      { status: 503 }
-    );
-  }
-
   const body = await request.json();
-  const model = process.env.GEMINI_MODEL || DEFAULT_MODEL;
   const payload = {
     language: body.language === "zh-TW" ? "zh-TW" : "en",
     city: body.city || "",
@@ -122,45 +129,76 @@ export async function POST(request) {
     air: body.air || {},
     profile: cleanHealthProfile(body.profile || {}),
   };
+  const apiKey = process.env.GEMINI_API_KEY;
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-  const geminiResponse = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      contents: [
-        {
-          role: "user",
-          parts: [{ text: buildPrompt(payload) }],
-        },
-      ],
-      generationConfig: {
-        temperature: 0.45,
-        maxOutputTokens: 420,
-        responseMimeType: "application/json",
+  if (!apiKey) {
+    return Response.json(fallbackAdvice(payload), {
+      headers: {
+        "Cache-Control": "no-store",
       },
-    }),
-  });
-
-  const data = await geminiResponse.json();
-
-  if (!geminiResponse.ok) {
-    return Response.json(
-      {
-        error: data?.error?.message || "Gemini health advice failed.",
-      },
-      { status: 502 }
-    );
+    });
   }
 
-  const text = responseText(data);
-  const parsed = parseJsonText(text);
+  const model = process.env.GEMINI_MODEL || DEFAULT_MODEL;
 
-  return Response.json(sanitizeAdvice(parsed, payload.language), {
-    headers: {
-      "Cache-Control": "no-store",
-    },
-  });
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+  try {
+    const geminiResponse = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        contents: [
+          {
+            role: "user",
+            parts: [{ text: buildPrompt(payload) }],
+          },
+        ],
+        generationConfig: {
+          temperature: 0.45,
+          maxOutputTokens: 420,
+          responseMimeType: "application/json",
+        },
+      }),
+    });
+
+    const data = await geminiResponse.json();
+
+    if (!geminiResponse.ok) {
+      return Response.json(
+        {
+          ...fallbackAdvice(payload),
+          providerError: data?.error?.message || "Gemini health advice failed.",
+        },
+        {
+          headers: {
+            "Cache-Control": "no-store",
+          },
+        }
+      );
+    }
+
+    const text = responseText(data);
+    const parsed = parseJsonText(text);
+
+    return Response.json(sanitizeAdvice(parsed, payload.language), {
+      headers: {
+        "Cache-Control": "no-store",
+      },
+    });
+  } catch (error) {
+    return Response.json(
+      {
+        ...fallbackAdvice(payload),
+        providerError: error.message,
+      },
+      {
+        headers: {
+          "Cache-Control": "no-store",
+        },
+      }
+    );
+  }
 }

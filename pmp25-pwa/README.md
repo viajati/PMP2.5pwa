@@ -1,6 +1,6 @@
-# PMP2.5 Taiwan PWA
+# PM2.5 Taiwan PWA
 
-PMP2.5 Taiwan is a mobile-first Progressive Web App for understanding personal PM2.5 exposure in Taiwan. It combines live air quality, weather context, route planning, GPS-based movement history, account sync, bilingual UI, and a health profile so users can see not only the air quality around them, but also how much exposure they accumulate while moving.
+PM2.5 Taiwan is a mobile-first Progressive Web App for understanding personal PM2.5 exposure in Taiwan. It combines live air quality, weather context, route planning, GPS-based movement history, account sync, bilingual UI, and a health profile so users can see not only the air quality around them, but also how much exposure they accumulate while moving.
 
 The app is built as a Next.js web app and designed to feel like a native phone interface inside the browser.
 
@@ -20,7 +20,7 @@ The app is built as a Next.js web app and designed to feel like a native phone i
 
 ## Core Idea
 
-Most air quality apps show a city-level number. PMP2.5 adds a personal layer:
+Most air quality apps show a city-level number. PM2.5 adds a personal layer:
 
 - Where am I now?
 - What is the PM2.5 near me?
@@ -335,4 +335,4 @@ pmp25-pwa/
 
 ## Presentation Summary
 
-PMP2.5 Taiwan is a personalized pollution exposure tracker. It combines live Taiwan air-quality data, weather-aware visuals, road-based route estimates, real GPS history, Firebase account sync, and bilingual user preferences. The key design idea is that exposure is not just a city number; it is accumulated through time, route, movement, and transport mode.
+PM2.5 Taiwan is a personalized pollution exposure tracker. It combines live Taiwan air-quality data, weather-aware visuals, road-based route estimates, real GPS history, Firebase account sync, and bilingual user preferences. The key design idea is that exposure is not just a city number; it is accumulated through time, route, movement, and transport mode.

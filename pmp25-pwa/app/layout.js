@@ -17,11 +17,11 @@ const geistMono = Geist_Mono({
 
 export const metadata = {
   title: {
-    default: "PMP2.5",
-    template: "%s | PMP2.5",
+    default: "PM2.5",
+    template: "%s | PM2.5",
   },
   description: "Track PM2.5 exposure, live routes, records, summaries, and profile settings.",
-  applicationName: "PMP2.5",
+  applicationName: "PM2.5",
   manifest: "/manifest.webmanifest",
   icons: {
     icon: [
@@ -35,7 +35,7 @@ export const metadata = {
   },
   appleWebApp: {
     capable: true,
-    title: "PMP2.5",
+    title: "PM2.5",
     statusBarStyle: "black-translucent",
     startupImage: [],
   },

@@ -398,7 +398,10 @@ export default function RecordsPage() {
       ? `${t("Trend", "趨勢")}：${drift > 0 ? t("PM2.5 may increase tomorrow.", "明天 PM2.5 可能上升。") : t("Stable or lower PM2.5 expected tomorrow.", "明天 PM2.5 預期持平或下降。")}`
       : routeData
         ? `${cityName(startCity, isChinese)} → ${cityName(endCity, isChinese)} · ${displayedDistance.toFixed(1)} KM · ${Math.round(displayedDuration)} ${t("min", "分鐘")} · ${displayedLoad} ${t("score", "分")}`
-        : t("Pick origin, destination, and transport to optimize exposure along the route.", "選擇起點、目的地與交通方式來優化路線暴露。");
+      : t("Pick origin, destination, and transport to optimize exposure along the route.", "選擇起點、目的地與交通方式來優化路線暴露。");
+  const adviceSourceLabel = healthAdvice.source === "ai"
+    ? t("Gemini profile advice", "Gemini 個人化建議")
+    : t("Profile-based advice", "健康設定建議");
 
   function forecastDayLabel(day) {
     if (!isChinese) return day.day;
@@ -541,16 +544,46 @@ export default function RecordsPage() {
               ))}
             </div>
 
-            <div className={["records2-advice", "records-native-ai", mode === "LIVE" ? `records-health-advice-${healthAdvice.level}` : ""].join(" ")}>
+            <div className={["records2-advice", "records-native-ai", mode === "LIVE" ? `records-health-advice records-health-advice-${healthAdvice.level}` : ""].join(" ")}>
               <span className="records-native-ai-glow" />
               {mode === "PLANNER" ? (
                 <Route size={16} className="app-notice-icon" />
               ) : (
                 <Sparkles size={16} className="app-notice-icon" />
               )}
-              <p className="records-native-ai-text">
-                {adviceLoading && mode === "LIVE" ? t("Personalizing atmosphere...", "正在產生個人化空氣建議...") : globalAdviceText}
-              </p>
+
+              {mode === "LIVE" ? (
+                <div className="records-advice-copy">
+                  <div className="records-advice-head">
+                    <p className="records-advice-kicker">
+                      {adviceLoading ? t("Personalizing", "個人化中") : adviceSourceLabel}
+                    </p>
+                    <span className="records-advice-pill">
+                      {healthAdvice.label}
+                    </span>
+                  </div>
+
+                  <p className="records-advice-title">
+                    {adviceLoading ? t("Reading your profile...", "正在讀取你的健康設定...") : healthAdvice.title}
+                  </p>
+
+                  <p className="records-advice-summary">
+                    {adviceLoading ? t("Combining PM2.5, weather, and your health profile.", "正在結合 PM2.5、天氣與你的健康設定。") : healthAdvice.summary}
+                  </p>
+
+                  {!adviceLoading && healthAdvice.actions?.length > 0 && (
+                    <ul className="records-advice-list">
+                      {healthAdvice.actions.map((action) => (
+                        <li key={action}>{action}</li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              ) : (
+                <p className="records-native-ai-text">
+                  {globalAdviceText}
+                </p>
+              )}
             </div>
 
             {mode === "LIVE" && (
