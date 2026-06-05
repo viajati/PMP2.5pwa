@@ -1,4 +1,5 @@
-const CACHE_NAME = "pmp25-pwa-v1";
+const CACHE_NAME = "pmp25-pwa-v20260605";
+const CACHE_PREFIX = "pmp25-pwa-";
 const APP_SHELL = [
   "/",
   "/home",
@@ -20,12 +21,31 @@ self.addEventListener("install", (event) => {
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key)))
+      Promise.all(
+        keys
+          .filter((key) => key.startsWith(CACHE_PREFIX) && key !== CACHE_NAME)
+          .map((key) => caches.delete(key))
+      )
     )
   );
 
   self.clients.claim();
 });
+
+self.addEventListener("message", (event) => {
+  if (event.data?.type === "SKIP_WAITING") self.skipWaiting();
+});
+
+async function fetchAndCache(request) {
+  const response = await fetch(request);
+
+  if (response?.ok) {
+    const copy = response.clone();
+    caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+  }
+
+  return response;
+}
 
 self.addEventListener("fetch", (event) => {
   const { request } = event;
@@ -35,12 +55,7 @@ self.addEventListener("fetch", (event) => {
 
   if (request.mode === "navigate") {
     event.respondWith(
-      fetch(request)
-        .then((response) => {
-          const copy = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
-          return response;
-        })
+      fetchAndCache(request)
         .catch(() =>
           caches.match(request).then((cached) => cached || caches.match("/login"))
         )
@@ -49,17 +64,6 @@ self.addEventListener("fetch", (event) => {
   }
 
   event.respondWith(
-    caches.match(request).then((cached) => {
-      const fresh = fetch(request).then((response) => {
-        if (response.ok) {
-          const copy = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
-        }
-
-        return response;
-      });
-
-      return cached || fresh;
-    })
+    fetchAndCache(request).catch(() => caches.match(request))
   );
 });

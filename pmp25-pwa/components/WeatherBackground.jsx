@@ -82,7 +82,7 @@ function Rain() {
           className="weather-rain-drop"
           style={{
             "--rain-x": `${(index * 37 + 5) % 100}%`,
-            "--rain-delay": `${(index * 97) % 2000}ms`,
+            "--rain-delay": `${-((index * 97) % 1500)}ms`,
             "--rain-duration": `${1000 + ((index * 53) % 500)}ms`,
           }}
         />

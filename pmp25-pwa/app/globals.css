@@ -2400,7 +2400,7 @@ button:disabled {
 
 .weather-rain-drop {
   position: absolute;
-  top: 0;
+  top: -36px;
   left: var(--rain-x);
   width: 2px;
   height: 25px;
@@ -2485,8 +2485,11 @@ button:disabled {
 
 @keyframes weather-rain-fall {
   0% {
+    opacity: 0;
+    transform: translate3d(0, -42px, 0);
+  }
+  8% {
     opacity: 0.6;
-    transform: translate3d(0, -20px, 0);
   }
   80% {
     opacity: 0.6;
