@@ -6,6 +6,9 @@ export const runtime = "nodejs";
 
 const DEFAULT_MODEL = "gemini-2.5-flash";
 const VALID_LEVELS = new Set(["low", "moderate", "high"]);
+const AI_CACHE_TTL_MS = 10 * 60 * 1000;
+const FALLBACK_CACHE_TTL_MS = 60 * 1000;
+const adviceCache = new Map();
 
 function cleanText(value, fallback, maxLength = 220) {
   const text = typeof value === "string" ? value.trim() : "";
@@ -89,6 +92,51 @@ function fallbackAdvice(payload, source = "profile-rules") {
   };
 }
 
+function roundedNumber(value, fallback = 0) {
+  const number = Number(value);
+  return Number.isFinite(number) ? Number(number.toFixed(1)) : fallback;
+}
+
+function adviceCacheKey(payload, model) {
+  return JSON.stringify({
+    model,
+    language: payload.language,
+    city: payload.city,
+    displayCity: payload.displayCity,
+    pm25: roundedNumber(payload.air?.pm25),
+    pm10: roundedNumber(payload.air?.pm10),
+    co: roundedNumber(payload.air?.co),
+    humidity: roundedNumber(payload.air?.humidity),
+    windSpeed: roundedNumber(payload.air?.windSpeed),
+    weather: payload.air?.weather || "",
+    weatherType: payload.air?.weatherType || "",
+    profile: payload.profile,
+  });
+}
+
+function getCachedAdvice(key) {
+  const cached = adviceCache.get(key);
+  if (!cached) return null;
+
+  if (Date.now() > cached.expiresAt) {
+    adviceCache.delete(key);
+    return null;
+  }
+
+  return cached.value;
+}
+
+function setCachedAdvice(key, value, ttl = AI_CACHE_TTL_MS) {
+  adviceCache.set(key, {
+    value,
+    expiresAt: Date.now() + ttl,
+  });
+}
+
+function normalizeModelName(value) {
+  return cleanText(value, DEFAULT_MODEL, 120).replace(/^models\//, "");
+}
+
 function buildPrompt(payload) {
   const chinese = payload.language === "zh-TW";
   const language = chinese ? "Traditional Chinese" : "English";
@@ -145,7 +193,17 @@ export async function POST(request) {
     });
   }
 
-  const model = process.env.GEMINI_MODEL?.trim() || DEFAULT_MODEL;
+  const model = normalizeModelName(process.env.GEMINI_MODEL);
+  const cacheKey = adviceCacheKey(payload, model);
+  const cachedAdvice = getCachedAdvice(cacheKey);
+
+  if (cachedAdvice) {
+    return Response.json(cachedAdvice, {
+      headers: {
+        "Cache-Control": "no-store",
+      },
+    });
+  }
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
@@ -174,12 +232,18 @@ export async function POST(request) {
 
     if (!geminiResponse.ok) {
       console.warn("[health-advice] Gemini request failed:", data?.error?.message || geminiResponse.statusText);
+      const advice = {
+        ...fallbackAdvice(payload),
+        providerError: data?.error?.message || "Gemini health advice failed.",
+      };
+      const ttl = String(advice.providerError).toLowerCase().includes("quota")
+        ? FALLBACK_CACHE_TTL_MS
+        : 0;
+
+      if (ttl > 0) setCachedAdvice(cacheKey, advice, ttl);
 
       return Response.json(
-        {
-          ...fallbackAdvice(payload),
-          providerError: data?.error?.message || "Gemini health advice failed.",
-        },
+        advice,
         {
           headers: {
             "Cache-Control": "no-store",
@@ -190,20 +254,23 @@ export async function POST(request) {
 
     const text = responseText(data);
     const parsed = parseJsonText(text);
+    const advice = sanitizeAdvice(parsed, payload.language);
+    setCachedAdvice(cacheKey, advice);
 
-    return Response.json(sanitizeAdvice(parsed, payload.language), {
+    return Response.json(advice, {
       headers: {
         "Cache-Control": "no-store",
       },
     });
   } catch (error) {
     console.warn("[health-advice] Gemini fallback:", error.message);
+    const advice = {
+      ...fallbackAdvice(payload),
+      providerError: error.message,
+    };
 
     return Response.json(
-      {
-        ...fallbackAdvice(payload),
-        providerError: error.message,
-      },
+      advice,
       {
         headers: {
           "Cache-Control": "no-store",

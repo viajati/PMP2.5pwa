@@ -44,6 +44,9 @@ const RoutePreviewMap = dynamic(() => import("@/components/RoutePreviewMap"), { 
 
 const tabs = ["LIVE", "PLANNER", "FORECAST"];
 const regions = ["NORTH", "WEST", "SOUTH", "EAST"];
+const ADVICE_CACHE_PREFIX = "pmp25_health_advice_v2";
+const AI_ADVICE_CLIENT_CACHE_MS = 10 * 60 * 1000;
+const FALLBACK_ADVICE_CLIENT_CACHE_MS = 60 * 1000;
 
 function pmColor(value) {
   if (value <= 15.4) return "#34C759";
@@ -148,6 +151,46 @@ function geminiFallbackReason(error = "", t) {
     "Gemini is temporarily unavailable. Using profile rules.",
     "Gemini 暫時不可用，會使用健康設定規則。"
   );
+}
+
+function roundedCacheNumber(value, fallback = 0) {
+  const number = Number(value);
+  return Number.isFinite(number) ? Number(number.toFixed(1)) : fallback;
+}
+
+function readAdviceCache(key) {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return null;
+
+    const cached = JSON.parse(raw);
+    if (!cached?.value || Date.now() > Number(cached.expiresAt || 0)) {
+      window.localStorage.removeItem(key);
+      return null;
+    }
+
+    return cached.value;
+  } catch {
+    return null;
+  }
+}
+
+function writeAdviceCache(key, value, ttl) {
+  if (typeof window === "undefined" || !value) return;
+
+  try {
+    window.localStorage.setItem(
+      key,
+      JSON.stringify({
+        value,
+        expiresAt: Date.now() + ttl,
+      })
+    );
+  } catch {
+    // Ignore storage quota/private-mode failures; the API route still has a cache.
+  }
 }
 
 function RingGauge({ value, label, subLabel, color = "#FFCC00" }) {
@@ -300,28 +343,54 @@ export default function RecordsPage() {
       if (!controller.signal.aborted) setAdviceLoading(true);
     });
 
+    const adviceRequest = {
+      language: isChinese ? "zh-TW" : "en",
+      city,
+      displayCity: cityName(city, isChinese),
+      air: {
+        pm25,
+        pm10: selected?.pm10 || 0,
+        co: selected?.co || 0,
+        caqi,
+        temp: selected?.temp ?? "",
+        humidity: selected?.humidity ?? "",
+        windSpeed: selected?.windSpeed ?? "",
+        weather: weather.label,
+        weatherType: weather.type,
+      },
+      profile: healthProfile,
+    };
+    const adviceCacheKey = `${ADVICE_CACHE_PREFIX}:${JSON.stringify({
+      language: adviceRequest.language,
+      city: adviceRequest.city,
+      displayCity: adviceRequest.displayCity,
+      pm25: roundedCacheNumber(adviceRequest.air.pm25),
+      pm10: roundedCacheNumber(adviceRequest.air.pm10),
+      co: roundedCacheNumber(adviceRequest.air.co),
+      humidity: roundedCacheNumber(adviceRequest.air.humidity),
+      windSpeed: roundedCacheNumber(adviceRequest.air.windSpeed),
+      weather: adviceRequest.air.weather,
+      weatherType: adviceRequest.air.weatherType,
+      profile: healthProfile,
+    })}`;
+    const cachedAdvice = readAdviceCache(adviceCacheKey);
+
+    if (cachedAdvice) {
+      queueMicrotask(() => {
+        if (!controller.signal.aborted) {
+          setAiHealthAdvice(cachedAdvice);
+          setAdviceLoading(false);
+        }
+      });
+      return () => controller.abort();
+    }
+
     fetch("/api/health-advice", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        language: isChinese ? "zh-TW" : "en",
-        city,
-        displayCity: cityName(city, isChinese),
-        air: {
-          pm25,
-          pm10: selected?.pm10 || 0,
-          co: selected?.co || 0,
-          caqi,
-          temp: selected?.temp ?? "",
-          humidity: selected?.humidity ?? "",
-          windSpeed: selected?.windSpeed ?? "",
-          weather: weather.label,
-          weatherType: weather.type,
-        },
-        profile: healthProfile,
-      }),
+      body: JSON.stringify(adviceRequest),
       signal: controller.signal,
     })
       .then(async (response) => {
@@ -334,6 +403,12 @@ export default function RecordsPage() {
         }
 
         setAiHealthAdvice(advice);
+
+        if (advice?.source === "ai") {
+          writeAdviceCache(adviceCacheKey, advice, AI_ADVICE_CLIENT_CACHE_MS);
+        } else if (String(advice?.providerError || "").toLowerCase().includes("quota")) {
+          writeAdviceCache(adviceCacheKey, advice, FALLBACK_ADVICE_CLIENT_CACHE_MS);
+        }
       })
       .catch((error) => {
         if (error.name !== "AbortError") {
