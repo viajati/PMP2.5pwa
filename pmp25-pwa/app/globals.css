@@ -2457,7 +2457,7 @@ button:disabled {
   background: rgba(255, 255, 255, 0.7);
   box-shadow: 0 0 5px rgba(255, 255, 255, 0.4);
   opacity: 0;
-  transform: translate3d(-100px, 0, 0) rotate(0deg);
+  transform: translate3d(-120px, 0, 0) scale(var(--leaf-scale, 1)) rotate(0deg);
   will-change: transform, opacity;
   animation: weather-leaf-float var(--leaf-duration) linear var(--leaf-delay) infinite;
 }
@@ -2527,18 +2527,18 @@ button:disabled {
 @keyframes weather-leaf-float {
   0% {
     opacity: 0;
-    transform: translate3d(-100px, 0, 0) rotate(0deg);
+    transform: translate3d(-120px, 0, 0) scale(var(--leaf-scale, 1)) rotate(0deg);
   }
-  20%,
-  80% {
-    opacity: 0.8;
+  14%,
+  82% {
+    opacity: 0.72;
   }
   50% {
-    transform: translate3d(calc(var(--phone-width) / 2), 50px, 0) rotate(360deg);
+    transform: translate3d(calc(var(--phone-width) / 2), var(--leaf-drift, 42px), 0) scale(var(--leaf-scale, 1)) rotate(360deg);
   }
   100% {
     opacity: 0;
-    transform: translate3d(calc(var(--phone-width) + 100px), 0, 0) rotate(720deg);
+    transform: translate3d(calc(var(--phone-width) + 120px), var(--leaf-end-drift, -14px), 0) scale(var(--leaf-scale, 1)) rotate(720deg);
   }
 }
 

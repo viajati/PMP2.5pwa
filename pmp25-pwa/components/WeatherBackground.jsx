@@ -132,6 +132,17 @@ function Clouds({ density = "cloudy" }) {
 }
 
 function Wind() {
+  const leafConfigs = [
+    { y: 18, delay: 0, duration: 5400, drift: 30, end: -12, scale: 0.86 },
+    { y: 52, delay: 620, duration: 6100, drift: -18, end: 18, scale: 0.72 },
+    { y: 86, delay: 1220, duration: 5000, drift: 48, end: -20, scale: 1 },
+    { y: 122, delay: 1840, duration: 6600, drift: 12, end: -8, scale: 0.78 },
+    { y: 160, delay: 2460, duration: 5700, drift: -34, end: 24, scale: 0.94 },
+    { y: 198, delay: 3080, duration: 6400, drift: 36, end: -16, scale: 0.68 },
+    { y: 236, delay: 3700, duration: 5200, drift: -10, end: 14, scale: 0.9 },
+    { y: 274, delay: 4320, duration: 6900, drift: 56, end: -24, scale: 0.74 },
+  ];
+
   return (
     <div className="weather-layer" aria-hidden="true">
       {Array.from({ length: 18 }).map((_, index) => (
@@ -145,14 +156,17 @@ function Wind() {
           }}
         />
       ))}
-      {Array.from({ length: 10 }).map((_, index) => (
+      {leafConfigs.map((leaf, index) => (
         <span
           key={`leaf-${index}`}
           className="weather-leaf"
           style={{
-            "--leaf-y": `${(index * 73 + 19) % 300}px`,
-            "--leaf-delay": `-${240 + ((index * 173) % 1800)}ms`,
-            "--leaf-duration": `${4000 + ((index * 197) % 2000)}ms`,
+            "--leaf-y": `${leaf.y}px`,
+            "--leaf-delay": `-${leaf.delay}ms`,
+            "--leaf-duration": `${leaf.duration}ms`,
+            "--leaf-drift": `${leaf.drift}px`,
+            "--leaf-end-drift": `${leaf.end}px`,
+            "--leaf-scale": leaf.scale,
           }}
         />
       ))}

@@ -48,25 +48,54 @@ const ADVICE_CACHE_PREFIX = "pmp25_health_advice_v2";
 const AI_ADVICE_CLIENT_CACHE_MS = 10 * 60 * 1000;
 const FALLBACK_ADVICE_CLIENT_CACHE_MS = 60 * 1000;
 
+function numericValue(value) {
+  if (value === null || value === undefined || value === "" || value === "-") return null;
+
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function numericOrZero(value) {
+  return numericValue(value) ?? 0;
+}
+
+function displayNumber(value, digits = 1) {
+  const number = numericValue(value);
+  return number === null ? "-" : number.toFixed(digits);
+}
+
+function displayInteger(value) {
+  const number = numericValue(value);
+  return number === null ? "-" : String(Math.round(number));
+}
+
+function displayWithUnit(value, unit, digits = 0) {
+  const text = digits === 0 ? displayInteger(value) : displayNumber(value, digits);
+  return text === "-" ? "-" : `${text}${unit}`;
+}
+
 function pmColor(value) {
-  if (value <= 15.4) return "#34C759";
-  if (value <= 35.4) return "#FFCC00";
-  if (value <= 54.4) return "#FF9500";
+  const number = numericValue(value);
+
+  if (number === null) return "#8E8E93";
+  if (number <= 15.4) return "#34C759";
+  if (number <= 35.4) return "#FFCC00";
+  if (number <= 54.4) return "#FF9500";
   return "#FF3B30";
 }
 
 function caqiFrom(pm25, pm10, co) {
-  const pm25Score = Math.min(100, (pm25 / 75) * 100);
-  const pm10Score = Math.min(100, (pm10 / 150) * 100);
-  const coScore = Math.min(100, (co / 2000) * 100);
+  const pm25Score = Math.min(100, (numericOrZero(pm25) / 75) * 100);
+  const pm10Score = Math.min(100, (numericOrZero(pm10) / 150) * 100);
+  const coScore = Math.min(100, (numericOrZero(co) / 2000) * 100);
   return Math.round(Math.max(pm25Score, pm10Score, coScore));
 }
 
 function getWeatherMeta(rawCode, rawWindSpeed = 0) {
-  const code = Number(rawCode);
-  const windSpeed = Number(rawWindSpeed);
+  const code = numericValue(rawCode);
+  const windSpeed = numericValue(rawWindSpeed);
 
-  if (Number.isFinite(windSpeed) && windSpeed >= 28) return { Icon: Wind, label: "windy", type: "windy" };
+  if (windSpeed !== null && windSpeed >= 28) return { Icon: Wind, label: "windy", type: "windy" };
   if ([95, 96, 99].includes(code)) return { Icon: CloudLightning, label: "stormy", type: "storm" };
   if ([
     51, 53, 55, 56, 57,
@@ -92,14 +121,14 @@ function fallbackRows() {
   return Object.keys(CITY_COORDS).map((city) => ({
     county: city,
     region: regionFor(city),
-    pm25: 0,
-    pm10: 0,
-    co: 0,
-    temp: "-",
-    humidity: "-",
-    windSpeed: "-",
-    weatherCode: 0,
-    time: "Loading",
+    pm25: null,
+    pm10: null,
+    co: null,
+    temp: null,
+    humidity: null,
+    windSpeed: null,
+    weatherCode: null,
+    time: null,
   }));
 }
 
@@ -207,7 +236,8 @@ function writeAdviceCache(key, value, ttl) {
 }
 
 function RingGauge({ value, label, subLabel, color = "#FFCC00" }) {
-  const clamped = Math.max(1, Math.min(100, Number(value) || 0));
+  const number = numericValue(value);
+  const clamped = number === null ? 0 : Math.max(1, Math.min(100, number));
 
   return (
     <div className="forecast-native-ring-item">
@@ -219,7 +249,7 @@ function RingGauge({ value, label, subLabel, color = "#FFCC00" }) {
         }}
       >
         <div className="forecast-native-ring-center">
-          <p>{Math.round(clamped)}%</p>
+          <p>{number === null ? "-" : `${Math.round(clamped)}%`}</p>
           <span>{subLabel}</span>
         </div>
       </div>
@@ -320,34 +350,42 @@ export default function RecordsPage() {
   }, [city]);
 
   const selected = rows.find((item) => item.county === city) || rows[0];
+  const selectedPm25 = numericValue(selected?.pm25);
+  const selectedPm10 = numericValue(selected?.pm10);
+  const selectedCo = numericValue(selected?.co);
+  const selectedHumidity = numericValue(selected?.humidity);
+  const selectedWindSpeed = numericValue(selected?.windSpeed);
+  const selectedWeatherCode = numericValue(selected?.weatherCode);
   const currentHour = new Date().getHours();
-  const weather = getWeatherMeta(selected?.weatherCode, selected?.windSpeed);
+  const weather = getWeatherMeta(selectedWeatherCode, selectedWindSpeed);
   const WeatherIcon = weather.Icon;
-  const caqi = caqiFrom(selected?.pm25 || 0, selected?.pm10 || 0, selected?.co || 0);
+  const hasSelectedAirData = selectedPm25 !== null || selectedPm10 !== null || selectedCo !== null;
+  const caqi = caqiFrom(selectedPm25, selectedPm10, selectedCo);
   const liveWeather = {
     type: normalizeWeatherBackgroundType(weather.type),
-    weatherCode: Number.isFinite(Number(selected?.weatherCode)) ? Number(selected.weatherCode) : 0,
-    windSpeed: Number.isFinite(Number(selected?.windSpeed)) ? Number(selected.windSpeed) : 0,
+    weatherCode: selectedWeatherCode ?? 0,
+    windSpeed: selectedWindSpeed ?? 0,
   };
-  const pollutionScore = Math.max(0, Math.min(100, 100 - ((selected?.pm25 || 0) * 1.5)));
+  const pollutionScore = selectedPm25 === null ? null : Math.max(0, Math.min(100, 100 - (selectedPm25 * 1.5)));
   const healthProfileKey = JSON.stringify(healthProfile);
   const fallbackHealthAdvice = useMemo(() => (
     buildHealthAdvice({
       city: cityName(city, isChinese),
-      pm25: selected?.pm25 || 0,
+      pm25: selectedPm25 ?? 0,
       weatherLabel: weatherName(weather.label, isChinese),
       weatherType: weather.type,
       profile: healthProfile,
       chinese: isChinese,
     })
-  ), [city, healthProfile, isChinese, selected?.pm25, weather.label, weather.type]);
+  ), [city, healthProfile, isChinese, selectedPm25, weather.label, weather.type]);
   const healthAdvice = aiHealthAdvice || fallbackHealthAdvice;
 
   useEffect(() => {
-    const pm25 = Number(selected?.pm25);
-
-    if (!Number.isFinite(pm25)) {
-      queueMicrotask(() => setAiHealthAdvice(null));
+    if (selectedPm25 === null) {
+      queueMicrotask(() => {
+        setAiHealthAdvice(null);
+        setAdviceLoading(false);
+      });
       return undefined;
     }
 
@@ -361,13 +399,13 @@ export default function RecordsPage() {
       city,
       displayCity: cityName(city, isChinese),
       air: {
-        pm25,
-        pm10: selected?.pm10 || 0,
-        co: selected?.co || 0,
+        pm25: selectedPm25,
+        pm10: selectedPm10 ?? 0,
+        co: selectedCo ?? 0,
         caqi,
         temp: selected?.temp ?? "",
-        humidity: selected?.humidity ?? "",
-        windSpeed: selected?.windSpeed ?? "",
+        humidity: selectedHumidity ?? "",
+        windSpeed: selectedWindSpeed ?? "",
         weather: weather.label,
         weatherType: weather.type,
       },
@@ -440,12 +478,12 @@ export default function RecordsPage() {
     healthProfile,
     healthProfileKey,
     isChinese,
-    selected?.co,
-    selected?.humidity,
-    selected?.pm10,
-    selected?.pm25,
+    selectedCo,
+    selectedHumidity,
+    selectedPm10,
+    selectedPm25,
     selected?.temp,
-    selected?.windSpeed,
+    selectedWindSpeed,
     weather.label,
     weather.type,
   ]);
@@ -454,27 +492,44 @@ export default function RecordsPage() {
     return rows.filter((item) => item.region === region);
   }, [rows, region]);
 
-  const tomorrow = dailyPrediction[1] || dailyPrediction[0] || { pm25: 0, pm10: 0, co: 0 };
-  const drift = Number(((tomorrow.pm25 || 0) - (selected?.pm25 || 0)).toFixed(1));
-  const actualScore = Math.max(1, Math.min(100, 100 - ((selected?.pm25 || 0) * 1.1)));
-  const potentialScore = Math.max(1, Math.min(100, 100 - ((tomorrow.pm25 || selected?.pm25 || 0) * 1.1)));
+  const tomorrow = dailyPrediction[1] || dailyPrediction[0] || {};
+  const tomorrowPm25 = numericValue(tomorrow.pm25);
+  const tomorrowPm10 = numericValue(tomorrow.pm10);
+  const tomorrowCo = numericValue(tomorrow.co);
+  const drift = selectedPm25 !== null && tomorrowPm25 !== null
+    ? Number((tomorrowPm25 - selectedPm25).toFixed(1))
+    : null;
+  const actualScore = selectedPm25 === null
+    ? null
+    : Math.max(1, Math.min(100, 100 - (selectedPm25 * 1.1)));
+  const potentialBasis = tomorrowPm25 ?? selectedPm25;
+  const potentialScore = potentialBasis === null
+    ? null
+    : Math.max(1, Math.min(100, 100 - (potentialBasis * 1.1)));
   const forecastTrendValues = [
-    selected?.pm25 || 0,
-    ...dailyPrediction.slice(0, 6).map((day) => day.pm25 || 0),
+    selectedPm25,
+    ...dailyPrediction.slice(0, 6).map((day) => numericValue(day.pm25)),
   ];
-  const forecastMax = Math.max(1, ...forecastTrendValues) * 1.6;
+  const forecastChartValues = forecastTrendValues.filter((value) => value !== null);
+  const hasForecastTrendData = forecastChartValues.length > 0;
+  const forecastMax = Math.max(1, ...forecastChartValues) * 1.6;
   const forecastLinePoints = forecastTrendValues.map((value, index) => {
+    if (value === null) return null;
+
     const x = 15 + (index / 6) * 300;
     const y = 15 + (100 - ((value / forecastMax) * 100));
     return `${x},${y}`;
-  }).join(" ");
+  }).filter(Boolean).join(" ");
 
   const routeKm = distanceBetween(startCity, endCity);
   const routeMinutes = routeMinutesFor(transport, routeKm);
 
   const destination = rows.find((item) => item.county === endCity) || selected;
-  const avgRoutePm25 = Number((((selected?.pm25 || 0) + (destination?.pm25 || 0)) / 2).toFixed(1));
-  const routeLoad = estimateRoutePmLoad(avgRoutePm25);
+  const destinationPm25 = numericValue(destination?.pm25);
+  const avgRoutePm25 = selectedPm25 !== null && destinationPm25 !== null
+    ? Number(((selectedPm25 + destinationPm25) / 2).toFixed(1))
+    : null;
+  const routeLoad = avgRoutePm25 === null ? null : estimateRoutePmLoad(avgRoutePm25);
   const displayedDistance = routeData?.distance ?? routeKm;
   const displayedDuration = routeData?.duration ?? routeMinutes;
   const displayedLoad = routeData?.load ?? routeLoad;
@@ -512,9 +567,11 @@ export default function RecordsPage() {
   const globalAdviceText = mode === "LIVE"
     ? healthAdvice.summary
     : mode === "FORECAST"
-      ? `${t("Trend", "趨勢")}：${drift > 0 ? t("PM2.5 may increase tomorrow.", "明天 PM2.5 可能上升。") : t("Stable or lower PM2.5 expected tomorrow.", "明天 PM2.5 預期持平或下降。")}`
+      ? drift === null
+        ? t("Trend: waiting for PM2.5 forecast data.", "趨勢：等待 PM2.5 預測資料。")
+        : `${t("Trend", "趨勢")}：${drift > 0 ? t("PM2.5 may increase tomorrow.", "明天 PM2.5 可能上升。") : t("Stable or lower PM2.5 expected tomorrow.", "明天 PM2.5 預期持平或下降。")}`
       : routeData
-        ? `${cityName(startCity, isChinese)} → ${cityName(endCity, isChinese)} · ${displayedDistance.toFixed(1)} KM · ${Math.round(displayedDuration)} ${t("min", "分鐘")} · ${displayedLoad} µg/m³`
+        ? `${cityName(startCity, isChinese)} → ${cityName(endCity, isChinese)} · ${displayedDistance.toFixed(1)} KM · ${Math.round(displayedDuration)} ${t("min", "分鐘")} · ${displayNumber(displayedLoad, 1)} µg/m³`
       : t("Pick origin, destination, and transport to optimize exposure along the route.", "選擇起點、目的地與交通方式來優化路線暴露。");
   const adviceSourceLabel = healthAdvice.source === "ai"
     ? t("Gemini profile advice", "Gemini 個人化建議")
@@ -522,6 +579,7 @@ export default function RecordsPage() {
   const adviceFallbackReason = healthAdvice.source !== "ai"
     ? geminiFallbackReason(healthAdvice.providerError, t)
     : "";
+  const airDataWaiting = selectedPm25 === null;
 
   function forecastDayLabel(day) {
     if (!isChinese) return day.day;
@@ -547,7 +605,7 @@ export default function RecordsPage() {
       const fallbackDuration = routeMinutes;
       const distance = route?.distance ?? fallbackDistance;
       const duration = route?.duration ?? fallbackDuration;
-      const load = estimateRoutePmLoad(avgRoutePm25);
+      const load = avgRoutePm25 === null ? null : estimateRoutePmLoad(avgRoutePm25);
 
       setRouteData({
         coords: route?.coords || [],
@@ -599,29 +657,29 @@ export default function RecordsPage() {
                 </p>
 
                 <p className="records-weather-temp records-weather-pm25">
-                  {selected?.pm25 ?? "-"}
+                  {displayNumber(selectedPm25, 1)}
                   <span>PM2.5</span>
                 </p>
 
                 <div className="records-weather-condition">
                   <WeatherIcon size={24} strokeWidth={2.8} />
-                  <span>{weather.type === "sunny" ? t("Good", "良好") : weatherName(weather.label, isChinese)}</span>
+                  <span>{airDataWaiting ? t("Loading", "載入中") : weather.type === "sunny" ? t("Good", "良好") : weatherName(weather.label, isChinese)}</span>
                 </div>
 
                 <div className="records-weather-bubbles">
                   <div className="records-weather-bubble records-weather-bubble-pollution">
                     <p>{t("Pollution", "污染")}</p>
-                    <strong>{Math.round(pollutionScore)}%</strong>
+                    <strong>{pollutionScore === null ? "-" : `${Math.round(pollutionScore)}%`}</strong>
                   </div>
 
                   <div className="records-weather-bubble records-weather-bubble-wind">
                     <p>{t("Wind", "風速")}</p>
-                    <strong>{selected?.windSpeed ?? 0}km</strong>
+                    <strong>{displayWithUnit(selectedWindSpeed, "km", 1)}</strong>
                   </div>
 
                   <div className="records-weather-bubble records-weather-bubble-humidity">
                     <p>{t("Humidity", "濕度")}</p>
-                    <strong>{selected?.humidity ?? 0}%</strong>
+                    <strong>{displayWithUnit(selectedHumidity, "%")}</strong>
                   </div>
                 </div>
               </div>
@@ -676,22 +734,22 @@ export default function RecordsPage() {
                 <div className="records-advice-copy">
                   <div className="records-advice-head">
                     <p className="records-advice-kicker">
-                      {adviceLoading ? t("Personalizing", "個人化中") : adviceSourceLabel}
+                      {airDataWaiting ? t("Loading PM2.5", "載入 PM2.5") : adviceLoading ? t("Personalizing", "個人化中") : adviceSourceLabel}
                     </p>
                     <span className="records-advice-pill">
-                      {healthAdvice.label}
+                      {airDataWaiting ? t("WAITING", "等待中") : healthAdvice.label}
                     </span>
                   </div>
 
                   <p className="records-advice-title">
-                    {adviceLoading ? t("Reading your profile...", "正在讀取你的健康設定...") : healthAdvice.title}
+                    {airDataWaiting ? t("Waiting for PM2.5 readings...", "等待 PM2.5 讀數...") : adviceLoading ? t("Reading your profile...", "正在讀取你的健康設定...") : healthAdvice.title}
                   </p>
 
                   <p className="records-advice-summary">
-                    {adviceLoading ? t("Combining PM2.5, weather, and your health profile.", "正在結合 PM2.5、天氣與你的健康設定。") : healthAdvice.summary}
+                    {airDataWaiting ? t("Records will update when the PM2.5 API responds.", "PM2.5 API 回應後會更新紀錄。") : adviceLoading ? t("Combining PM2.5, weather, and your health profile.", "正在結合 PM2.5、天氣與你的健康設定。") : healthAdvice.summary}
                   </p>
 
-                  {!adviceLoading && healthAdvice.actions?.length > 0 && (
+                  {!airDataWaiting && !adviceLoading && healthAdvice.actions?.length > 0 && (
                     <ul className="records-advice-list">
                       {healthAdvice.actions.map((action) => (
                         <li key={action}>{action}</li>
@@ -699,7 +757,7 @@ export default function RecordsPage() {
                     </ul>
                   )}
 
-                  {!adviceLoading && adviceFallbackReason && (
+                  {!airDataWaiting && !adviceLoading && adviceFallbackReason && (
                     <p className="records-advice-status">
                       {adviceFallbackReason}
                     </p>
@@ -743,6 +801,8 @@ export default function RecordsPage() {
                   const meta = getWeatherMeta(item.weatherCode, item.windSpeed);
                   const Icon = meta.Icon;
                   const active = item.county === city;
+                  const itemWeatherWaiting = numericValue(item.weatherCode) === null
+                    && numericValue(item.windSpeed) === null;
 
                   return (
                     <button
@@ -767,12 +827,12 @@ export default function RecordsPage() {
                           {cityName(item.county, isChinese)}
                         </p>
                         <p className="records-row-meta">
-                          {weatherName(meta.label, isChinese)} · {t("Hum", "濕度")} {item.humidity ?? "-"}% · {t("Wind", "風速")} {item.windSpeed ?? "-"} km/h
+                          {itemWeatherWaiting ? t("Loading", "載入中") : weatherName(meta.label, isChinese)} · {t("Hum", "濕度")} {displayWithUnit(item.humidity, "%")} · {t("Wind", "風速")} {displayWithUnit(item.windSpeed, " km/h", 1)}
                         </p>
                       </div>
 
                       <p className="records-row-value">
-                        {item.pm25}
+                        {displayNumber(item.pm25, 1)}
                         <span className="records-row-unit">µg/m³ PM2.5</span>
                       </p>
                     </button>
@@ -889,7 +949,7 @@ export default function RecordsPage() {
                   <div className="records2-soft">
                     <p className="records2-label">{t("Avg PM2.5", "平均 PM2.5")}</p>
                     <p className="records2-value records2-value-sm">
-                      {avgRoutePm25}
+                      {displayNumber(avgRoutePm25, 1)}
                       <span className="records2-unit">µg/m³</span>
                     </p>
                   </div>
@@ -900,7 +960,7 @@ export default function RecordsPage() {
                       className="records2-value records2-value-md"
                       style={{ "--value-color": pmColor(avgRoutePm25) }}
                     >
-                      {displayedLoad}
+                      {displayNumber(displayedLoad, 1)}
                       <span className="records2-unit">µg/m³</span>
                     </p>
                   </div>
@@ -966,13 +1026,13 @@ export default function RecordsPage() {
 
                 <div className="forecast-native-hero-row">
                   <div className="forecast-native-caqi-box">
-                    <p className="forecast-native-caqi-num">{caqi}</p>
+                    <p className="forecast-native-caqi-num">{hasSelectedAirData ? caqi : "-"}</p>
                     <p className="forecast-native-caqi-label">CAQI</p>
                   </div>
 
                   <div className="forecast-native-hero-copy">
                     <span className="forecast-native-status-pill">
-                      {caqi < 35 ? t("HEALTHY", "健康") : t("MODERATE", "普通")}
+                      {!hasSelectedAirData ? t("LOADING", "載入中") : caqi < 35 ? t("HEALTHY", "健康") : t("MODERATE", "普通")}
                     </span>
                   </div>
                 </div>
@@ -986,15 +1046,15 @@ export default function RecordsPage() {
                   <RingGauge
                     value={actualScore}
                     label={t("Actual (Now)", "目前實測")}
-                    subLabel={actualScore > 60 ? t("Good", "良好") : t("Poor", "不佳")}
-                    color={actualScore > 60 ? "#FFCC00" : "#FF3B30"}
+                    subLabel={actualScore === null ? "-" : actualScore > 60 ? t("Good", "良好") : t("Poor", "不佳")}
+                    color={actualScore === null ? "#8E8E93" : actualScore > 60 ? "#FFCC00" : "#FF3B30"}
                   />
                   <span className="forecast-native-gauge-arrow">→</span>
                   <RingGauge
                     value={potentialScore}
                     label={t("Predicted (Tom.)", "明日預測")}
-                    subLabel={potentialScore > 60 ? t("Good", "良好") : t("Poor", "不佳")}
-                    color={potentialScore > 60 ? "#FF9500" : "#FF3B30"}
+                    subLabel={potentialScore === null ? "-" : potentialScore > 60 ? t("Good", "良好") : t("Poor", "不佳")}
+                    color={potentialScore === null ? "#8E8E93" : potentialScore > 60 ? "#FF9500" : "#FF3B30"}
                   />
                 </div>
               </div>
@@ -1009,7 +1069,7 @@ export default function RecordsPage() {
 
                     <div className="forecast-metric-row">
                       <p className="forecast-metric-value forecast-metric-good">
-                        {Math.round(selected?.pm25 || 0)}
+                        {displayInteger(selectedPm25)}
                       </p>
                       <Sun size={18} className="forecast-icon-good" />
                     </div>
@@ -1021,7 +1081,7 @@ export default function RecordsPage() {
 
                     <div className="forecast-metric-row">
                       <p className="forecast-metric-value forecast-metric-warn">
-                        {Math.round(selected?.pm10 || 0)}
+                        {displayInteger(selectedPm10)}
                       </p>
                       <Cloud size={18} className="forecast-icon-warn" />
                     </div>
@@ -1033,7 +1093,7 @@ export default function RecordsPage() {
 
                     <div className="forecast-metric-row">
                       <p className="forecast-metric-value forecast-metric-good">
-                        {Math.round(selected?.co || 0)}
+                        {displayInteger(selectedCo)}
                       </p>
                       <Leaf size={18} className="forecast-icon-good" />
                     </div>
@@ -1047,19 +1107,19 @@ export default function RecordsPage() {
                 <div className="forecast-future-grid forecast-native-future-grid">
                   <div className="forecast-future-cell">
                     <Cloud size={20} className="forecast-icon-muted" />
-                    <p className="forecast-future-value">{Number(tomorrow.pm25 || 0).toFixed(1)}</p>
+                    <p className="forecast-future-value">{displayNumber(tomorrowPm25, 1)}</p>
                     <p className="forecast-future-label">PM 2.5</p>
                   </div>
 
                   <div className="forecast-future-cell">
                     <TrendingUp size={20} className="forecast-icon-muted" />
-                    <p className="forecast-future-value">{Number(tomorrow.pm10 || 0).toFixed(1)}</p>
+                    <p className="forecast-future-value">{displayNumber(tomorrowPm10, 1)}</p>
                     <p className="forecast-future-label">PM 10</p>
                   </div>
 
                   <div className="forecast-future-cell">
                     <Leaf size={20} className="forecast-icon-muted" />
-                    <p className="forecast-future-value">{Math.round(tomorrow.co || 0)}</p>
+                    <p className="forecast-future-value">{displayInteger(tomorrowCo)}</p>
                     <p className="forecast-future-label">CO2 / CO</p>
                   </div>
 
@@ -1067,9 +1127,9 @@ export default function RecordsPage() {
                     <Navigation size={20} className="forecast-icon-muted" />
                     <p
                       className="forecast-future-value"
-                      style={{ "--value-color": drift <= 0 ? "#34C759" : "#FF3B30" }}
+                      style={{ "--value-color": drift === null ? "#8E8E93" : drift <= 0 ? "#34C759" : "#FF3B30" }}
                     >
-                      {drift}
+                      {drift === null ? "-" : drift}
                     </p>
                     <p className="forecast-future-label">{t("Drift", "變化")}</p>
                   </div>
@@ -1085,45 +1145,53 @@ export default function RecordsPage() {
                       <div key={day.date}>
                         <p className="forecast-week-day">{forecastDayLabel(day)}</p>
                         <Cloud size={20} className="forecast-icon-accent" />
-                        <p className="forecast-week-value">{Math.round(day.pm25)}</p>
+                        <p className="forecast-week-value">{displayInteger(day.pm25)}</p>
                       </div>
                     ))}
                   </div>
 
                   <div className="forecast-native-chart-box">
-                    <svg viewBox="0 0 330 140" role="img" aria-label={t("PM2.5 forecast trend", "PM2.5 預測趨勢")}>
-                      {forecastTrendValues.map((_, index) => {
-                        const x = 15 + (index / 6) * 300;
-                        return (
-                          <line
-                            key={`grid-${index}`}
-                            x1={x}
-                            y1="10"
-                            x2={x}
-                            y2="130"
-                            className="forecast-native-chart-grid"
-                          />
-                        );
-                      })}
-                      <polyline
-                        points={forecastLinePoints}
-                        fill="none"
-                        className="forecast-native-chart-line"
-                      />
-                      {forecastTrendValues.map((value, index) => {
-                        const x = 15 + (index / 6) * 300;
-                        const y = 15 + (100 - ((value / forecastMax) * 100));
-                        return (
-                          <circle
-                            key={`point-${index}`}
-                            cx={x}
-                            cy={y}
-                            r={index === forecastTrendValues.length - 1 ? 5 : 4}
-                            className="forecast-native-chart-dot"
-                          />
-                        );
-                      })}
-                    </svg>
+                    {hasForecastTrendData ? (
+                      <svg viewBox="0 0 330 140" role="img" aria-label={t("PM2.5 forecast trend", "PM2.5 預測趨勢")}>
+                        {forecastTrendValues.map((_, index) => {
+                          const x = 15 + (index / 6) * 300;
+                          return (
+                            <line
+                              key={`grid-${index}`}
+                              x1={x}
+                              y1="10"
+                              x2={x}
+                              y2="130"
+                              className="forecast-native-chart-grid"
+                            />
+                          );
+                        })}
+                        <polyline
+                          points={forecastLinePoints}
+                          fill="none"
+                          className="forecast-native-chart-line"
+                        />
+                        {forecastTrendValues.map((value, index) => {
+                          if (value === null) return null;
+
+                          const x = 15 + (index / 6) * 300;
+                          const y = 15 + (100 - ((value / forecastMax) * 100));
+                          return (
+                            <circle
+                              key={`point-${index}`}
+                              cx={x}
+                              cy={y}
+                              r={index === forecastTrendValues.length - 1 ? 5 : 4}
+                              className="forecast-native-chart-dot"
+                            />
+                          );
+                        })}
+                      </svg>
+                    ) : (
+                      <p className="forecast-updated-at">
+                        {t("Waiting for PM2.5 forecast data.", "等待 PM2.5 預測資料。")}
+                      </p>
+                    )}
                   </div>
 
                   <p className="forecast-updated-at">

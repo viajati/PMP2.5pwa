@@ -130,6 +130,23 @@ function pointPm25(point) {
   return Number.isFinite(value) && value > 0 ? value : null;
 }
 
+function numericValue(value) {
+  if (value === null || value === undefined || value === "" || value === "-") return null;
+
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function displayNumber(value, digits = 1) {
+  const number = numericValue(value);
+  return number === null ? "-" : number.toFixed(digits);
+}
+
+function displayInteger(value) {
+  const number = numericValue(value);
+  return number === null ? "-" : String(Math.round(number));
+}
+
 function rowTimeMs(row) {
   const parsed = new Date(row?.time).getTime();
   return Number.isFinite(parsed) ? parsed : null;
@@ -173,7 +190,7 @@ async function fetchCurrentCityAirSample(city) {
 
 async function estimateCityPm25(city) {
   const sample = await fetchCurrentCityAirSample(city);
-  return sample?.pm25 || 0;
+  return numericValue(sample?.pm25);
 }
 
 function calculateRoadExposure(routePoints, routedSegments, mode, fallbackStats) {
@@ -534,15 +551,17 @@ export default function HomePage() {
           })
         );
 
-        const currentCityPm25 = cityPmMap[currentCity] || 0;
-        const currentCityExposure = Number(currentCityPm25.toFixed(1));
+        const currentCityPm25 = numericValue(cityPmMap[currentCity]);
+        const currentCityExposure = currentCityPm25 === null
+          ? null
+          : Number(currentCityPm25.toFixed(1));
         const pm25Samples = teleopMode ? [] : loadTodayPm25Samples();
 
         let routeMetadataChanged = false;
         const enrichedRoute = activePath.map((point) => {
           const pointCity = point.city || getNearestCity(point.latitude, point.longitude);
-          const pointPm25 = cityPmMap[pointCity] || currentCityPm25 || 0;
-          const roundedPm25 = Number(pointPm25.toFixed(1));
+          const pointPm25 = numericValue(cityPmMap[pointCity]) ?? currentCityPm25;
+          const roundedPm25 = pointPm25 === null ? null : Number(pointPm25.toFixed(1));
           const nextPoint = {
             ...point,
             city: pointCity,
@@ -557,17 +576,17 @@ export default function HomePage() {
         });
 
         const baseStats = buildRouteStats(enrichedRoute, {
-          avgPm25: currentCityPm25 || 0,
+          avgPm25: currentCityPm25 ?? 0,
           pm25Samples,
         });
         const enrichedRoadPoints = roadRoute?.routePoints?.map((point) => {
           const pointCity = point.city || getNearestCity(point.latitude, point.longitude);
-          const pointPm25 = cityPmMap[pointCity] || currentCityPm25 || 0;
+          const pointPm25 = numericValue(cityPmMap[pointCity]) ?? currentCityPm25;
 
           return {
             ...point,
             city: pointCity,
-            pm25: Number(pointPm25.toFixed(1)),
+            pm25: pointPm25 === null ? null : Number(pointPm25.toFixed(1)),
           };
         });
         const routedStats = roadRoute
@@ -590,15 +609,18 @@ export default function HomePage() {
               cityPath: baseStats.cityPath.length > 0 ? baseStats.cityPath : routedStats.cityPath,
               sampleCount: baseStats.sampleCount,
               pm25SampleCount: baseStats.pm25SampleCount,
-            }
+          }
           : routedStats;
+        const hasPmData = pm25Samples.length > 0
+          || currentCityPm25 !== null
+          || enrichedRoute.some((point) => pointPm25(point) !== null);
         const routeSummary = {
           distanceKm: stats.km,
           routeMinutes: stats.minutes,
-          exposureLoad: stats.exposureLoad,
-          avgPm25: stats.avgPm25,
-          peakPm25: stats.peak,
-          lowPm25: stats.low,
+          exposureLoad: hasPmData ? stats.exposureLoad : null,
+          avgPm25: hasPmData ? stats.avgPm25 : null,
+          peakPm25: hasPmData ? stats.peak : null,
+          lowPm25: hasPmData ? stats.low : null,
           segmentCount: stats.segments,
           samples: stats.hits,
           pm25Samples,
@@ -641,11 +663,11 @@ export default function HomePage() {
 
         setRouteLoad({
           city: currentCity,
-          currentCityPm25: Number(currentCityPm25.toFixed(1)),
+          currentCityPm25: currentCityExposure,
           currentCityExposure,
-          avgPm25: stats.avgPm25,
+          avgPm25: hasPmData ? stats.avgPm25 : null,
           routeMinutes: stats.minutes,
-          exposureLoad: stats.exposureLoad,
+          exposureLoad: hasPmData ? stats.exposureLoad : null,
           routeDistanceKm: stats.km,
           segmentCount: stats.segments,
           sampleCount: stats.hits,
@@ -804,6 +826,10 @@ export default function HomePage() {
     : teleopMode
       ? t("moves", "次移動")
       : t("GPS points", "GPS 點");
+  const routePm25Display = routeLoadLoading ? "-" : displayNumber(routeLoad?.exposureLoad, 1);
+  const currentCityPm25Display = routeLoadLoading ? "-" : displayNumber(routeLoad?.currentCityPm25, 1);
+  const currentCityExposureDisplay = routeLoadLoading ? "-" : displayNumber(routeLoad?.currentCityExposure, 1);
+  const routeMinutesDisplay = routeLoadLoading ? "-" : displayInteger(routeLoad?.routeMinutes);
 
   return (
     <main className="app-root home-root">
@@ -975,7 +1001,7 @@ export default function HomePage() {
                   {cityName(currentCity, isChinese)}
                 </p>
                 <p className="home-info-toggle-meta">
-                  {transportName(routeMode, isChinese)} · {Number(displayedDistance || 0).toFixed(2)} KM · {routeLoadLoading ? "..." : routeLoad?.exposureLoad ?? 0} µg/m³
+                  {transportName(routeMode, isChinese)} · {Number(displayedDistance || 0).toFixed(2)} KM · {routePm25Display} µg/m³
                 </p>
               </div>
               <span className="home-info-toggle-icon">
@@ -996,14 +1022,14 @@ export default function HomePage() {
                   <p className="home-bottom-label">{t("Current City", "目前城市")}</p>
                   <p className="home-bottom-value">{cityName(currentCity, isChinese)}</p>
                   <p className="home-bottom-sub">
-                    PM2.5 {routeLoad?.currentCityPm25 ?? 0} µg/m³
+                    PM2.5 {currentCityPm25Display} µg/m³
                   </p>
                 </div>
 
                 <div className="home-bottom-cell">
                   <p className="home-bottom-label">{t("City PM2.5", "城市 PM2.5")}</p>
                   <p className="home-bottom-value-strong">
-                    {routeLoadLoading ? "..." : routeLoad?.currentCityExposure ?? 0}
+                    {currentCityExposureDisplay}
                     <span className="home-bottom-unit">µg/m³</span>
                   </p>
                   <p className="home-bottom-sub">{t("local estimate", "本地估算")}</p>
@@ -1094,7 +1120,7 @@ export default function HomePage() {
                 <div className="home-bottom-cell">
                   <p className="home-bottom-label">{t("Route PM Avg", "路線 PM 平均")}</p>
                   <p className="home-bottom-value-strong">
-                    {routeLoadLoading ? "..." : routeLoad?.exposureLoad ?? 0}
+                    {routePm25Display}
                     <span className="home-bottom-unit">µg/m³</span>
                   </p>
                 </div>
@@ -1102,7 +1128,7 @@ export default function HomePage() {
 
               <div className="home-bottom-footer">
                 <p className="home-bottom-note">
-                  {transportName(routeMode, isChinese)} · {routeSourceDisplay} · {routeLoad?.routeMinutes ?? 0} {t("min", "分鐘")} · {routeLoad?.sampleCount ?? activePath.length} {routeSampleLabel}
+                  {transportName(routeMode, isChinese)} · {routeSourceDisplay} · {routeMinutesDisplay} {t("min", "分鐘")} · {routeLoad?.sampleCount ?? activePath.length} {routeSampleLabel}
                 </p>
 
                 <button
