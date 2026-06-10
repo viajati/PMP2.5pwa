@@ -216,7 +216,7 @@ function buildSummaryGroups(days = [], groupType = "monthly", chinese = false) {
       low: group.low === Number.POSITIVE_INFINITY ? 0 : Number(group.low.toFixed(1)),
       intervals: finalizedIntervals,
       risk: exposureRisk(exposureLoad),
-      source: group.isPersonal ? "route" : "no data",
+      source: group.isPersonal ? "samples" : "no data",
     };
   });
 }
@@ -329,7 +329,7 @@ export default function SummaryPage() {
           <div className="summary-today-card">
             <div className="summary-today-gradient">
               <div className="summary-today-header">
-                <p className="summary-today-label">{t("TODAY'S ROUTE PM AVG", "今日路線 PM 平均")}</p>
+                <p className="summary-today-label">{t("TODAY'S PM2.5 AVG", "今日 PM2.5 平均")}</p>
                 <div className="summary-today-actions">
                   <button
                     type="button"
@@ -354,15 +354,15 @@ export default function SummaryPage() {
 
               <div className="summary-today-main">
                 <div>
-                  <p className="summary-today-number">{today.exposureLoad}</p>
+                  <p className="summary-today-number">{today.avgPm25.toFixed(1)}</p>
                   <p className="summary-today-unit">µg/m³</p>
                 </div>
 
                 <span className="summary-today-divider" />
 
                 <div>
-                  <p className="summary-today-number">{today.avgPm25.toFixed(1)}</p>
-                  <p className="summary-today-unit">{t("AVG PM2.5", "平均 PM2.5")}</p>
+                  <p className="summary-today-number">{today.hits}</p>
+                  <p className="summary-today-unit">{t("PM SAMPLES", "PM 樣本")}</p>
                 </div>
               </div>
 
@@ -371,7 +371,7 @@ export default function SummaryPage() {
                   {isChinese ? `風險：${riskName(todayRisk.label, true)}` : `RISK: ${riskName(todayRisk.label)}`}
                 </p>
                 <p className="summary-today-location">
-                  {today.isPersonal ? t("PERSONAL JOURNEY", "個人足跡") : todayLocation} · {today.km} km · {today.minutes} {t("min", "分鐘")} · {today.segments} {t("segments", "路段")}
+                  {today.isPersonal ? t("PERSONAL EXPOSURE", "個人暴露") : todayLocation} · {today.km} km · {today.minutes} {t("min", "分鐘")} · {today.hits} {t("PM samples", "PM 樣本")}
                 </p>
               </div>
             </div>
@@ -457,8 +457,8 @@ export default function SummaryPage() {
                 ? day.dayName
                 : summaryDayName(day, isChinese);
               const subtitle = day.groupType
-                ? `${day.date} · ${day.activeDays} ${t("active days", "活動天")} · ${day.hits} ${t("GPS points", "GPS 點")}`
-                : `${summaryDate(day, isChinese)} · ${day.segments} ${t("segments", "路段")} · ${day.hits} ${t("GPS points", "GPS 點")}`;
+                ? `${day.date} · ${day.activeDays} ${t("sample days", "採樣天")} · ${day.hits} ${t("PM samples", "PM 樣本")}`
+                : `${summaryDate(day, isChinese)} · ${day.segments} ${t("segments", "路段")} · ${day.hits} ${t("PM samples", "PM 樣本")}`;
 
               return (
                 <button
@@ -551,7 +551,7 @@ export default function SummaryPage() {
 
                       <div className="summary-native-source-row">
                         <p className="summary-inline-meta">
-                          {day.hits} {t("GPS points", "GPS 點")} · {day.minutes} {t("min", "分鐘")}
+                          {day.hits} {t("PM samples", "PM 樣本")} · {day.minutes} {t("min", "分鐘")}
                         </p>
 
                         <span className="summary-source-chip">
@@ -567,20 +567,22 @@ export default function SummaryPage() {
 
                       <p className="summary-route-path">
                         {day.cityPath?.length > 0
-                          ? `${day.groupType ? t("Route cities", "路線城市") : t("GPS route", "GPS 路線")}：${day.cityPath.map((city) => cityName(city, isChinese)).join(" → ")}`
-                          : t("No real GPS route recorded for this day.", "這一天沒有真實 GPS 路線紀錄。")}
+                          ? `${day.groupType ? t("Sample cities", "採樣城市") : day.segments > 0 ? t("GPS route", "GPS 路線") : t("Sample cities", "採樣城市")}：${day.cityPath.map((city) => cityName(city, isChinese)).join(" → ")}`
+                          : t("No PM2.5 samples recorded for this day.", "這一天沒有 PM2.5 採樣紀錄。")}
                       </p>
 
                       <p className="summary-inline-meta mt-2">
                         {day.groupType
-                          ? t("This row combines real GPS route days in the selected period.", "此列彙整所選期間內的真實 GPS 路線日期。")
+                          ? t("This row combines PM2.5 sample days in the selected period.", "此列彙整所選期間內的 PM2.5 採樣日期。")
+                          : day.durationSource === "time-samples"
+                          ? t("Exposure comes from hourly PM2.5 samples saved while the PWA is open, even if you stay in one place.", "暴露值來自 PWA 開啟時儲存的每小時 PM2.5 採樣，即使停留原地也會記錄。")
                           : day.durationSource === "timestamp"
                           ? t("Duration comes from phone GPS timestamps.", "時間由手機 GPS 時間戳計算。")
                           : day.durationSource === "road"
                             ? t("Distance and duration use the road route calculated from real GPS points.", "距離與時間使用真實 GPS 點計算出的道路路線。")
                           : day.isPersonal
-                            ? t("Duration is estimated from distance because timestamp gaps were unavailable.", "因缺少可用時間戳，時間由距離估算。")
-                          : t("Allow GPS on Home and keep the PWA open while moving to build this history automatically. Browsers cannot keep GPS running after iOS fully suspends the app.", "在首頁允許 GPS，並在移動時保持 PWA 開啟，即可自動建立歷史。當 iOS 完全暫停網頁 App 後，瀏覽器無法繼續在背景收集 GPS。")}
+                            ? t("PM2.5 average is based on saved samples; distance is only route context.", "PM2.5 平均來自已儲存採樣，距離只作為路線背景資訊。")
+                          : t("Keep the PWA open on Home to save hourly PM2.5 samples. Browsers cannot keep GPS running after iOS fully suspends the app.", "在首頁保持 PWA 開啟即可儲存每小時 PM2.5 採樣。當 iOS 完全暫停網頁 App 後，瀏覽器無法繼續收集 GPS。")}
                       </p>
                     </div>
                   )}

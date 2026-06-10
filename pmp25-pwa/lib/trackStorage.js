@@ -1,6 +1,7 @@
 const ROUTE_KEY = "pmp25_real_gps_route";
 const ROUTE_SUMMARY_KEY = "pmp25_real_gps_route_summary";
 const SIMULATION_ROUTE_KEY = "pmp25_simulation_route";
+const PM25_SAMPLES_KEY = "pmp25_pm25_samples";
 
 export function routeDateId(offset = 0) {
   const date = new Date();
@@ -22,6 +23,20 @@ function getRouteSummaryKey(routeId = getTodayRouteId()) {
 
 function getSimulationRouteKey(routeId = getTodayRouteId()) {
   return `${SIMULATION_ROUTE_KEY}_${routeId}`;
+}
+
+function getPm25SamplesKey(routeId = getTodayRouteId()) {
+  return `${PM25_SAMPLES_KEY}_${routeId}`;
+}
+
+function localHourKey(timestamp = Date.now()) {
+  const date = new Date(timestamp);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hour = String(date.getHours()).padStart(2, "0");
+
+  return `${year}-${month}-${day}T${hour}:00`;
 }
 
 function toRadians(value) {
@@ -97,6 +112,64 @@ export function loadTodayRouteSummary() {
 
 export function saveTodayRouteSummary(summary) {
   saveRouteSummaryById(getTodayRouteId(), summary);
+}
+
+export function loadPm25SamplesById(routeId = getTodayRouteId()) {
+  if (typeof window === "undefined") return [];
+
+  try {
+    const raw = localStorage.getItem(getPm25SamplesKey(routeId));
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function savePm25SamplesById(routeId, samples) {
+  if (typeof window === "undefined") return;
+
+  localStorage.setItem(getPm25SamplesKey(routeId), JSON.stringify(samples));
+}
+
+export function loadTodayPm25Samples() {
+  return loadPm25SamplesById(getTodayRouteId());
+}
+
+export function appendPm25Sample(sample, routeId = getTodayRouteId()) {
+  const pm25 = Number(sample?.pm25);
+  if (!Number.isFinite(pm25) || pm25 <= 0) {
+    return loadPm25SamplesById(routeId);
+  }
+
+  const samples = loadPm25SamplesById(routeId);
+  const timestamp = Number(sample?.timestamp) || Date.now();
+  const hourKey = sample?.hourKey || localHourKey(timestamp);
+  const city = sample?.city || "Unknown";
+  const lat = Number(sample?.latitude);
+  const lon = Number(sample?.longitude);
+  const locationKey =
+    Number.isFinite(lat) && Number.isFinite(lon)
+      ? `${lat.toFixed(2)}_${lon.toFixed(2)}`
+      : city;
+  const id = sample?.id || `${hourKey}_${city}_${locationKey}`;
+
+  const nextSample = {
+    source: "time-sample",
+    ...sample,
+    id,
+    city,
+    hourKey,
+    timestamp,
+    pm25: Number(pm25.toFixed(1)),
+  };
+
+  const nextSamples = samples
+    .filter((item) => item?.id !== id)
+    .concat(nextSample)
+    .sort((a, b) => (Number(a?.timestamp) || 0) - (Number(b?.timestamp) || 0));
+
+  savePm25SamplesById(routeId, nextSamples);
+  return nextSamples;
 }
 
 export function getTodayDistance(route = loadTodayRoute()) {
@@ -177,4 +250,5 @@ export function clearTodayRoute() {
 
   localStorage.removeItem(getRouteKey(getTodayRouteId()));
   localStorage.removeItem(getRouteSummaryKey(getTodayRouteId()));
+  localStorage.removeItem(getPm25SamplesKey(getTodayRouteId()));
 }

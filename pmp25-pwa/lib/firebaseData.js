@@ -158,9 +158,9 @@ export async function loadUserRouteHistory(uid, routeIds) {
   );
 
   return entries.reduce((routes, [routeId, route]) => {
-    if (route?.points?.length) {
+    if (route?.points?.length || route?.summary?.pm25Samples?.length) {
       routes[routeId] = {
-        points: route.points,
+        points: route.points || [],
         summary: route.summary || null,
       };
     }

@@ -27,6 +27,7 @@ import {
 } from "@/lib/cities";
 import { cityName, regionName, routeSourceName, transportName } from "@/lib/i18n";
 import {
+  appendPm25Sample,
   appendPoint,
   appendSimulationPoint,
   calculateDistanceKm,
@@ -34,6 +35,7 @@ import {
   clearTodayRoute,
   getTodayRouteId,
   getTodayDistance,
+  loadTodayPm25Samples,
   loadTodaySimulationRoute,
   loadTodayRoute,
   saveTodaySimulationRoute,
@@ -62,6 +64,7 @@ const HOME_ROUTE_MODES = [
 ];
 
 const MIN_ROUTED_SEGMENT_KM = 0.05;
+const PM25_SAMPLE_INTERVAL_MS = 60 * 60 * 1000;
 
 function routePointKey(point) {
   return `${Number(point.latitude).toFixed(5)},${Number(point.longitude).toFixed(5)}`;
@@ -128,6 +131,50 @@ function pointPm25(point) {
   return Number.isFinite(value) && value > 0 ? value : null;
 }
 
+function rowTimeMs(row) {
+  const parsed = new Date(row?.time).getTime();
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function currentHourlyRow(rows = []) {
+  const orderedRows = rows
+    .filter((row) => Number.isFinite(Number(row?.pm25)) && Number(row.pm25) > 0)
+    .sort((a, b) => (rowTimeMs(a) || 0) - (rowTimeMs(b) || 0));
+
+  if (!orderedRows.length) return null;
+
+  const now = Date.now();
+  const latestCurrentRow = [...orderedRows]
+    .reverse()
+    .find((row) => {
+      const time = rowTimeMs(row);
+      return time !== null && time <= now;
+    });
+
+  return latestCurrentRow || orderedRows[0];
+}
+
+async function fetchCurrentCityAirSample(city) {
+  try {
+    const rows = await fetchHourlyAirQuality(city);
+    const row = currentHourlyRow(rows);
+    if (!row) return null;
+
+    return {
+      ...row,
+      timestamp: rowTimeMs(row) || Date.now(),
+      pm25: Number(Number(row.pm25).toFixed(1)),
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function estimateCityPm25(city) {
+  const sample = await fetchCurrentCityAirSample(city);
+  return sample?.pm25 || 0;
+}
+
 function calculateRoadExposure(routePoints, routedSegments, mode, fallbackStats) {
   if (!routedSegments?.length) return fallbackStats;
 
@@ -176,6 +223,7 @@ export default function HomePage() {
     latitude: 23.5,
     longitude: 121.0,
   });
+  const locationRef = useRef(location);
 
   const [search, setSearch] = useState("");
   const [selectedRegion, setSelectedRegion] = useState("ALL");
@@ -197,6 +245,7 @@ export default function HomePage() {
   const [currentCity, setCurrentCity] = useState("Taiwan");
   const [routeLoad, setRouteLoad] = useState(null);
   const [routeLoadLoading, setRouteLoadLoading] = useState(false);
+  const [pm25SampleCount, setPm25SampleCount] = useState(0);
 
   const [teleopMode, setTeleopMode] = useState(false);
   const [teleopPos, setTeleopPos] = useState(null);
@@ -217,6 +266,27 @@ export default function HomePage() {
       console.warn("Unable to sync cloud route:", error);
     });
   }, [firebaseReady, todayRouteId, user]);
+
+  useEffect(() => {
+    locationRef.current = location;
+  }, [location]);
+
+  const collectPm25Sample = useCallback(async () => {
+    if (teleopMode || !CITY_COORDS[currentCity]) return null;
+
+    const airSample = await fetchCurrentCityAirSample(currentCity);
+    if (!airSample) return null;
+
+    const sampleLocation = locationRef.current || CITY_COORDS[currentCity];
+
+    return appendPm25Sample({
+      ...airSample,
+      city: currentCity,
+      latitude: sampleLocation.latitude,
+      longitude: sampleLocation.longitude,
+      routeKind: "gps",
+    }, todayRouteId);
+  }, [currentCity, teleopMode, todayRouteId]);
 
   useEffect(() => {
     function handleKeyDown(event) {
@@ -342,6 +412,27 @@ export default function HomePage() {
   }, [syncCloudRoute, teleopMode]);
 
   useEffect(() => {
+    if (teleopMode) return undefined;
+
+    let alive = true;
+
+    async function sampleNow() {
+      const samples = await collectPm25Sample();
+      if (alive && samples) {
+        setPm25SampleCount(samples.length);
+      }
+    }
+
+    sampleNow();
+    const timer = window.setInterval(sampleNow, PM25_SAMPLE_INTERVAL_MS);
+
+    return () => {
+      alive = false;
+      window.clearInterval(timer);
+    };
+  }, [collectPm25Sample, teleopMode]);
+
+  useEffect(() => {
     let cancelled = false;
     const routePoints = compactRoutePoints(activePath);
 
@@ -418,29 +509,6 @@ export default function HomePage() {
   useEffect(() => {
     let alive = true;
 
-    async function estimateCityPm25(city) {
-      try {
-        const rows = await fetchHourlyAirQuality(city);
-        const now = Date.now();
-
-        const futureRows = rows.filter((row) => {
-          const rowTime = new Date(row.time).getTime();
-          return rowTime >= now;
-        });
-
-        const nextRows = futureRows.slice(0, 3);
-        const avg =
-          nextRows.length > 0
-            ? nextRows.reduce((sum, row) => sum + row.pm25, 0) /
-              nextRows.length
-            : rows[0]?.pm25 || 0;
-
-        return Number(avg.toFixed(1));
-      } catch {
-        return 0;
-      }
-    }
-
     async function calculateRouteExposureLoad() {
       if (!CITY_COORDS[currentCity]) {
         setRouteLoad(null);
@@ -468,6 +536,7 @@ export default function HomePage() {
 
         const currentCityPm25 = cityPmMap[currentCity] || 0;
         const currentCityExposure = Number(currentCityPm25.toFixed(1));
+        const pm25Samples = teleopMode ? [] : loadTodayPm25Samples();
 
         let routeMetadataChanged = false;
         const enrichedRoute = activePath.map((point) => {
@@ -489,6 +558,7 @@ export default function HomePage() {
 
         const baseStats = buildRouteStats(enrichedRoute, {
           avgPm25: currentCityPm25 || 0,
+          pm25Samples,
         });
         const enrichedRoadPoints = roadRoute?.routePoints?.map((point) => {
           const pointCity = point.city || getNearestCity(point.latitude, point.longitude);
@@ -500,7 +570,7 @@ export default function HomePage() {
             pm25: Number(pointPm25.toFixed(1)),
           };
         });
-        const stats = roadRoute
+        const routedStats = roadRoute
           ? calculateRoadExposure(
               enrichedRoadPoints,
               roadRoute.segments,
@@ -508,6 +578,20 @@ export default function HomePage() {
               baseStats
             )
           : baseStats;
+        const stats = pm25Samples.length > 0
+          ? {
+              ...routedStats,
+              avgPm25: baseStats.avgPm25,
+              exposureLoad: baseStats.exposureLoad,
+              peak: baseStats.peak,
+              low: baseStats.low,
+              hits: baseStats.hits,
+              intervals: baseStats.intervals,
+              cityPath: baseStats.cityPath.length > 0 ? baseStats.cityPath : routedStats.cityPath,
+              sampleCount: baseStats.sampleCount,
+              pm25SampleCount: baseStats.pm25SampleCount,
+            }
+          : routedStats;
         const routeSummary = {
           distanceKm: stats.km,
           routeMinutes: stats.minutes,
@@ -517,10 +601,14 @@ export default function HomePage() {
           lowPm25: stats.low,
           segmentCount: stats.segments,
           samples: stats.hits,
+          pm25Samples,
+          pm25SampleCount: pm25Samples.length,
           cityPath: stats.cityPath,
           durationSource: stats.durationSource,
           routeMode,
-          routeSource: roadRoute?.source || "GPS samples",
+          routeSource: pm25Samples.length > 0 && enrichedRoute.length < 2
+            ? "Time samples"
+            : roadRoute?.source || "GPS samples",
           routeKind: teleopMode ? "simulation" : "gps",
           calculation: {
             distance: roadRoute
@@ -529,14 +617,14 @@ export default function HomePage() {
             duration: roadRoute
               ? `${transportName(routeMode, false)} route duration`
               : stats.durationSource,
-            exposure: "average PM2.5 across route cities/GPS samples",
+            exposure: "time-based PM2.5 average from hourly city/location samples",
           },
           updatedAt: Date.now(),
         };
 
         if (!alive) return;
 
-        if (!teleopMode && enrichedRoute.length > 0) {
+        if (!teleopMode && (enrichedRoute.length > 0 || pm25Samples.length > 0)) {
           saveTodayRouteSummary(routeSummary);
           syncCloudRoute(enrichedRoute, routeSummary);
         }
@@ -561,11 +649,12 @@ export default function HomePage() {
           routeDistanceKm: stats.km,
           segmentCount: stats.segments,
           sampleCount: stats.hits,
+          pm25SampleCount: pm25Samples.length,
           cityPath: stats.cityPath,
           mode: routeMode,
           routeSource: teleopMode
             ? roadRoute?.source || "Simulation"
-            : roadRoute?.source || "GPS samples",
+            : routeSummary.routeSource,
           routeKind: teleopMode ? "simulation" : "gps",
         });
       } catch {
@@ -582,7 +671,7 @@ export default function HomePage() {
       alive = false;
       clearTimeout(timer);
     };
-  }, [activePath, currentCity, roadRoute, routeMode, syncCloudRoute, teleopMode]);
+  }, [activePath, currentCity, pm25SampleCount, roadRoute, routeMode, syncCloudRoute, teleopMode]);
 
   function handleCitySelect(city) {
     const coords = CITY_COORDS[city];
@@ -711,9 +800,14 @@ export default function HomePage() {
   const routeCityPathVisible = visibleCityPath(routeCityPath, routePathOpen);
   const routeCityPathHiddenCount = Math.max(0, routeCityPath.length - 4);
   const routeFormula = t(
-    `Route load is the simple PM2.5 average of the route cities/GPS samples (${routeLoad?.avgPm25 ?? 0} µg/m³). Distance and minutes stay visible for context, but they do not change this number.`,
-    `路線負荷是路線城市／GPS 點的 PM2.5 簡單平均（${routeLoad?.avgPm25 ?? 0} µg/m³）。距離與時間只作為路線背景資訊，不會影響此數值。`
+    `Route PM2.5 average uses hourly city/location samples when available (${routeLoad?.avgPm25 ?? 0} µg/m³). Distance and minutes stay visible for context, but they do not change this number.`,
+    `路線 PM2.5 平均會優先使用每小時城市／位置採樣（${routeLoad?.avgPm25 ?? 0} µg/m³）。距離與時間只作為路線背景資訊，不會影響此數值。`
   );
+  const routeSampleLabel = routeLoad?.pm25SampleCount > 0
+    ? t("PM samples", "PM 樣本")
+    : teleopMode
+      ? t("moves", "次移動")
+      : t("GPS points", "GPS 點");
 
   return (
     <main className="app-root home-root">
@@ -1012,7 +1106,7 @@ export default function HomePage() {
 
               <div className="home-bottom-footer">
                 <p className="home-bottom-note">
-                  {transportName(routeMode, isChinese)} · {routeSourceDisplay} · {routeLoad?.routeMinutes ?? 0} {t("min", "分鐘")} · {routeLoad?.sampleCount ?? activePath.length} {teleopMode ? t("moves", "次移動") : t("GPS points", "GPS 點")}
+                  {transportName(routeMode, isChinese)} · {routeSourceDisplay} · {routeLoad?.routeMinutes ?? 0} {t("min", "分鐘")} · {routeLoad?.sampleCount ?? activePath.length} {routeSampleLabel}
                 </p>
 
                 <button
@@ -1030,7 +1124,7 @@ export default function HomePage() {
                   className="home-bottom-icon-button"
                   onClick={() => setCalculationOpen((value) => !value)}
                   aria-expanded={calculationOpen}
-                  title={t("How load is calculated", "負荷如何計算")}
+                  title={t("How PM2.5 avg is calculated", "PM2.5 平均如何計算")}
                 >
                   <Info size={14} strokeWidth={3} />
                 </button>

@@ -1,4 +1,5 @@
 import {
+  loadPm25SamplesById,
   loadRouteById,
   loadRouteSummaryById,
   calculateDistanceKm,
@@ -50,20 +51,35 @@ function getStoredRouteEntryByOffset(offset, routeMap = null) {
     }
 
     const points = gpsOnly(cloudEntry.points || []);
+    const summary = cloudEntry.summary || null;
 
     return {
       points,
-      summary: points.length > 0 ? cloudEntry.summary || null : null,
+      summary: points.length > 0 || storedPm25Samples(summary).length > 0
+        ? summary
+        : null,
     };
   }
 
   if (typeof window === "undefined") return { points: [], summary: null };
 
   const localPoints = gpsOnly(loadRouteById(id));
+  const localSummary = loadRouteSummaryById(id);
+  const savedSamples = loadPm25SamplesById(id);
+  const summary = savedSamples.length > storedPm25Samples(localSummary).length
+    ? {
+        ...(localSummary || {}),
+        pm25Samples: savedSamples,
+        routeKind: localSummary?.routeKind || "gps",
+        routeSource: localSummary?.routeSource || "Time samples",
+      }
+    : localSummary;
 
   return {
     points: localPoints,
-    summary: localPoints.length > 0 ? loadRouteSummaryById(id) : null,
+    summary: localPoints.length > 0 || storedPm25Samples(summary).length > 0
+      ? summary
+      : null,
   };
 }
 
@@ -100,6 +116,14 @@ function pointCity(point) {
 function pointPm25(point) {
   const value = Number(point?.pm25);
   return Number.isFinite(value) && value > 0 ? value : null;
+}
+
+function storedPm25Samples(storedSummary = null) {
+  if (!Array.isArray(storedSummary?.pm25Samples)) return [];
+
+  return storedSummary.pm25Samples
+    .filter((sample) => pointPm25(sample) !== null)
+    .sort((a, b) => (timestampMs(a) || 0) - (timestampMs(b) || 0));
 }
 
 function storedPm25Average(storedSummary = null) {
@@ -155,6 +179,20 @@ function addIntervalSegment(bins, segment) {
   bin.pm25Count += 1;
 }
 
+function addIntervalSample(bins, sample) {
+  const stamp = timestampMs(sample) || Date.now();
+  const pm25 = pointPm25(sample);
+  if (pm25 === null) return;
+
+  const hour = new Date(stamp).getHours();
+  const bin = bins.find((item) => hour >= item.start && hour < item.end);
+  if (!bin) return;
+
+  bin.hits += 1;
+  bin.pm25Sum += pm25;
+  bin.pm25Count += 1;
+}
+
 function finalizeIntervals(bins) {
   return bins.map((bin) => {
     const avgPm25 = bin.pm25Count > 0
@@ -179,6 +217,14 @@ function cityPathFor(route) {
   }, []);
 }
 
+function sampleCityPathFor(samples) {
+  return samples.reduce((path, sample) => {
+    const city = sample?.city || pointCity(sample);
+    if (city && path[path.length - 1] !== city) path.push(city);
+    return path;
+  }, []);
+}
+
 function hasMeasuredPm25(route) {
   return route.some((point) => pointPm25(point) !== null);
 }
@@ -186,8 +232,10 @@ function hasMeasuredPm25(route) {
 export function buildRouteStats(route = [], storedSummary = null) {
   const points = Array.isArray(route) ? route : [];
   const bins = emptyIntervals();
+  const pm25Samples = storedPm25Samples(storedSummary);
+  const hasPm25Samples = pm25Samples.length > 0;
 
-  if (points.length === 0) {
+  if (points.length === 0 && !hasPm25Samples) {
     return {
       km: 0,
       avgPm25: 0,
@@ -200,6 +248,37 @@ export function buildRouteStats(route = [], storedSummary = null) {
       intervals: finalizeIntervals(bins),
       cityPath: [],
       durationSource: "none",
+      isFallback: false,
+    };
+  }
+
+  if (points.length === 0 && hasPm25Samples) {
+    const sampleBins = emptyIntervals();
+    const values = pm25Samples.map(pointPm25).filter((value) => value !== null);
+    values.forEach((_, index) => addIntervalSample(sampleBins, pm25Samples[index]));
+    const avgPm25 = values.reduce((sum, value) => sum + value, 0) / values.length;
+    const peak = Math.max(...values);
+    const low = Math.min(...values);
+    const summaryMinutes = Number(storedSummary?.routeMinutes);
+
+    return {
+      km: 0,
+      avgPm25: Number(avgPm25.toFixed(1)),
+      peak: Number(peak.toFixed(1)),
+      low: Number(low.toFixed(1)),
+      minutes: Number.isFinite(summaryMinutes) && summaryMinutes > 0
+        ? Math.round(summaryMinutes)
+        : 0,
+      exposureLoad: Number(avgPm25.toFixed(1)),
+      segments: 0,
+      hits: pm25Samples.length,
+      intervals: finalizeIntervals(sampleBins),
+      cityPath: sampleCityPathFor(pm25Samples),
+      durationSource: "time-samples",
+      routeMode: storedSummary?.routeMode || "",
+      routeSource: storedSummary?.routeSource || "Time samples",
+      sampleCount: pm25Samples.length,
+      pm25SampleCount: pm25Samples.length,
       isFallback: false,
     };
   }
@@ -250,16 +329,40 @@ export function buildRouteStats(route = [], storedSummary = null) {
   const storedAvgPm25 = storedPm25Average(storedSummary);
   const summaryPeak = Number(storedSummary?.peakPm25);
   const summaryLow = Number(storedSummary?.lowPm25);
-  const displayedAvgPm25 = !measuredPm25 && storedAvgPm25 > 0
-    ? storedAvgPm25
-    : Number(avgPm25.toFixed(1));
+  let sampleAvgPm25 = 0;
+  let samplePeak = 0;
+  let sampleLow = 0;
+  let sampleIntervals = null;
+
+  if (hasPm25Samples) {
+    const sampleBins = emptyIntervals();
+    const sampleValues = pm25Samples.map(pointPm25).filter((value) => value !== null);
+    pm25Samples.forEach((sample) => addIntervalSample(sampleBins, sample));
+
+    sampleAvgPm25 =
+      sampleValues.reduce((sum, value) => sum + value, 0) / sampleValues.length;
+    samplePeak = Math.max(...sampleValues);
+    sampleLow = Math.min(...sampleValues);
+    sampleIntervals = finalizeIntervals(sampleBins);
+  }
+
+  const displayedAvgPm25 = hasPm25Samples
+    ? Number(sampleAvgPm25.toFixed(1))
+    : !measuredPm25 && storedAvgPm25 > 0
+      ? storedAvgPm25
+      : Number(avgPm25.toFixed(1));
+  const primaryCityPath = sampleCityPathFor(pm25Samples);
 
   return {
     avgPm25: displayedAvgPm25,
-    peak: Number.isFinite(summaryPeak) && summaryPeak > 0
+    peak: hasPm25Samples
+      ? Number(samplePeak.toFixed(1))
+      : Number.isFinite(summaryPeak) && summaryPeak > 0
       ? summaryPeak
       : Number((peak || fallbackAvg || 0).toFixed(1)),
-    low: Number.isFinite(summaryLow) && summaryLow > 0
+    low: hasPm25Samples
+      ? Number(sampleLow.toFixed(1))
+      : Number.isFinite(summaryLow) && summaryLow > 0
       ? summaryLow
       : Number((low === Number.POSITIVE_INFINITY ? fallbackAvg || 0 : low).toFixed(1)),
     minutes: Number.isFinite(summaryMinutes) && summaryMinutes > 0
@@ -270,18 +373,23 @@ export function buildRouteStats(route = [], storedSummary = null) {
       ? Number(summaryDistance.toFixed(2))
       : Number(km.toFixed(2)),
     segments: Math.max(0, points.length - 1),
-    hits: points.length,
-    intervals: finalizeIntervals(bins),
-    cityPath: cityPathFor(points),
-    durationSource: storedSummary?.routeSource
+    hits: hasPm25Samples ? pm25Samples.length : points.length,
+    intervals: sampleIntervals || finalizeIntervals(bins),
+    cityPath: primaryCityPath.length > 0 ? primaryCityPath : cityPathFor(points),
+    durationSource: hasPm25Samples && points.length <= 1
+      ? "time-samples"
+      : storedSummary?.routeSource === "OSRM"
       ? "road"
       : timestampSegments > 0
         ? "timestamp"
         : "distance",
     routeMode: storedSummary?.routeMode || "",
-    routeSource: storedSummary?.routeSource || "",
+    routeSource: storedSummary?.routeSource || (hasPm25Samples ? "Time samples" : ""),
+    sampleCount: hasPm25Samples ? pm25Samples.length : points.length,
+    pm25SampleCount: pm25Samples.length,
     isFallback:
       points.length > 1 &&
+      !hasPm25Samples &&
       !measuredPm25 &&
       !storedAvgPm25,
   };
@@ -300,13 +408,13 @@ export function buildPeriodSummary(routeMap = null, dayCount = SUMMARY_PERIODS.w
       date: displayDate(i),
       ...stats,
       risk: exposureRisk(stats.exposureLoad),
-      source: stats.hits > 0 ? "route" : "no data",
-      isPersonal: stats.hits > 0,
+      source: stats.hits > 0 || stats.segments > 0 ? "samples" : "no data",
+      isPersonal: stats.hits > 0 || stats.segments > 0 || stats.avgPm25 > 0,
     });
   }
 
   const totalKm = days.reduce((sum, day) => sum + day.km, 0);
-  const activeDays = days.filter((day) => day.km > 0).length;
+  const activeDays = days.filter((day) => day.isPersonal).length;
   const activeRouteDays = days.filter((day) => day.isPersonal && day.avgPm25 > 0);
 
   const avgPm25 =
