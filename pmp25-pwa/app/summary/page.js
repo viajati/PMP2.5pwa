@@ -16,7 +16,11 @@ import {
 import OriginalBottomNav from "@/components/OriginalBottomNav";
 import { useAppPreferences } from "@/components/AppPreferencesProvider";
 import { useAuth } from "@/components/AuthProvider";
-import { buildWeeklySummary } from "@/lib/summaryStats";
+import {
+  SUMMARY_PERIODS,
+  buildAllSummaries,
+  buildWeeklySummary,
+} from "@/lib/summaryStats";
 import { loadUserRouteHistory } from "@/lib/firebaseData";
 import { routeDateId } from "@/lib/trackStorage";
 import {
@@ -32,17 +36,18 @@ function safeRisk(day) {
   return day?.risk || { label: "LOW", color: "#34C759" };
 }
 
+const PERIOD_LABELS_ZH = {
+  weekly: "每週",
+  monthly: "每月",
+  yearly: "每年",
+};
+
 export default function SummaryPage() {
   const { prefs, t } = useAppPreferences();
   const { user, firebaseReady } = useAuth();
   const isChinese = prefs.chinese;
-  const [summary, setSummary] = useState({
-    days: [],
-    totalKm: 0,
-    totalExposure: 0,
-    activeDays: 0,
-    avgPm25: 0,
-  });
+  const [summaries, setSummaries] = useState(() => buildAllSummaries());
+  const [periodKey, setPeriodKey] = useState("weekly");
 
   const [expandedDay, setExpandedDay] = useState(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
@@ -55,14 +60,17 @@ export default function SummaryPage() {
       let routeMap = null;
 
       if (firebaseReady && user?.uid) {
-        const routeIds = Array.from({ length: 7 }, (_, index) => routeDateId(index));
+        const routeIds = Array.from(
+          { length: SUMMARY_PERIODS.yearly.days },
+          (_, index) => routeDateId(index)
+        );
         routeMap = await loadUserRouteHistory(user.uid, routeIds);
       }
 
-      setSummary(buildWeeklySummary(routeMap));
+      setSummaries(buildAllSummaries(routeMap));
     } catch (error) {
       console.warn("Unable to load cloud route history:", error);
-      setSummary(buildWeeklySummary());
+      setSummaries(buildAllSummaries());
     } finally {
       setSummaryLoading(false);
     }
@@ -80,6 +88,19 @@ export default function SummaryPage() {
     };
   }, [refreshSummary]);
 
+  const summary = summaries[periodKey] || buildWeeklySummary();
+  const periodOptions = Object.values(SUMMARY_PERIODS);
+  const activePeriod = SUMMARY_PERIODS[periodKey] || SUMMARY_PERIODS.weekly;
+  const periodLabel = isChinese
+    ? PERIOD_LABELS_ZH[periodKey]
+    : activePeriod.label;
+  const periodDaysLabel = activePeriod.shortLabel;
+  const visibleDays = periodKey === "weekly"
+    ? summary.days
+    : summary.days.filter((day) => day.isPersonal).slice(0, 40);
+  const displayedDays = visibleDays.length > 0
+    ? visibleDays
+    : summary.days.slice(0, Math.min(7, summary.days.length));
   const today = summary.days[0] || {
     km: 0,
     exposureLoad: 0,
@@ -99,7 +120,7 @@ export default function SummaryPage() {
     : t("Phone GPS", "手機 GPS");
   const maxExposure = Math.max(
     1,
-    ...summary.days.map((day) => day.exposureLoad || 0)
+    ...displayedDays.map((day) => day.exposureLoad || 0)
   );
 
   return (
@@ -129,7 +150,7 @@ export default function SummaryPage() {
           <div className="summary-today-card">
             <div className="summary-today-gradient">
               <div className="summary-today-header">
-                <p className="summary-today-label">{t("TODAY'S EXPOSURE LOAD", "今日暴露負荷")}</p>
+                <p className="summary-today-label">{t("TODAY'S ROUTE PM AVG", "今日路線 PM 平均")}</p>
                 <div className="summary-today-actions">
                   <button
                     type="button"
@@ -155,7 +176,7 @@ export default function SummaryPage() {
               <div className="summary-today-main">
                 <div>
                   <p className="summary-today-number">{today.exposureLoad}</p>
-                  <p className="summary-today-unit">{t("SCORE", "分數")}</p>
+                  <p className="summary-today-unit">µg/m³</p>
                 </div>
 
                 <span className="summary-today-divider" />
@@ -177,10 +198,30 @@ export default function SummaryPage() {
             </div>
           </div>
 
+          <div className="summary-period-tabs" aria-label={t("Summary period", "總覽區間")}>
+            {periodOptions.map((period) => (
+              <button
+                key={period.key}
+                type="button"
+                onClick={() => {
+                  setPeriodKey(period.key);
+                  setExpandedDay(null);
+                }}
+                className={[
+                  "summary-period-tab",
+                  periodKey === period.key ? "summary-period-tab-active" : "",
+                ].join(" ")}
+              >
+                <span>{isChinese ? PERIOD_LABELS_ZH[period.key] : period.label}</span>
+                <small>{period.shortLabel}</small>
+              </button>
+            ))}
+          </div>
+
           <div className="summary-mini-grid summary-native-mini-grid">
             <div className="summary-mini-card">
               <Footprints className="forecast-icon-accent" size={21} strokeWidth={3} />
-              <p className="summary-mini-label mt-4">{t("Weekly Distance", "每週距離")}</p>
+              <p className="summary-mini-label mt-4">{isChinese ? `${periodLabel}距離` : `${periodLabel} Distance`}</p>
               <p className="summary-mini-value">
                 {summary.totalKm}
                 <span className="summary-history-unit">KM</span>
@@ -189,18 +230,18 @@ export default function SummaryPage() {
 
             <div className="summary-mini-card">
               <Gauge className="forecast-icon-accent" size={21} strokeWidth={3} />
-              <p className="summary-mini-label mt-4">{t("Weekly Load", "每週負荷")}</p>
+              <p className="summary-mini-label mt-4">{isChinese ? `${periodLabel}PM 平均` : `${periodLabel} PM Avg`}</p>
               <p className="summary-mini-value">
-                {summary.totalExposure}
-                <span className="summary-history-unit">{t("score", "分")}</span>
+                {summary.avgPm25}
+                <span className="summary-history-unit">µg/m³</span>
               </p>
             </div>
 
             <div className="summary-mini-card">
               <Activity className="forecast-icon-accent" size={21} strokeWidth={3} />
-              <p className="summary-mini-label mt-4">{t("Avg PM2.5", "平均 PM2.5")}</p>
+              <p className="summary-mini-label mt-4">{t("Peak PM2.5", "最高 PM2.5")}</p>
               <p className="summary-mini-value">
-                {summary.avgPm25}
+                {summary.peakPm25 || 0}
                 <span className="summary-history-unit">µg/m³</span>
               </p>
             </div>
@@ -210,7 +251,7 @@ export default function SummaryPage() {
               <p className="summary-mini-label mt-4">{t("Active Days", "活動天數")}</p>
               <p className="summary-mini-value">
                 {summary.activeDays}
-                <span className="summary-history-unit">/7</span>
+                <span className="summary-history-unit">/{summary.dayCount || activePeriod.days}</span>
               </p>
             </div>
           </div>
@@ -218,13 +259,15 @@ export default function SummaryPage() {
           <div className="summary-native-heading-row">
             <div className="summary-native-heading-title">
               <BarChart3 className="forecast-icon-accent" size={22} strokeWidth={3} />
-              <h2 className="summary-native-section-title">{t("HISTORY LOG (7D)", "歷史紀錄 (7天)")}</h2>
+              <h2 className="summary-native-section-title">
+                {isChinese ? `歷史紀錄 (${periodDaysLabel})` : `HISTORY LOG (${periodDaysLabel})`}
+              </h2>
             </div>
             <p className="summary-action-hint">{t("Tap to expand", "點擊展開")}</p>
           </div>
 
           <div className="summary-native-list">
-            {summary.days.map((day) => {
+            {displayedDays.map((day) => {
               const risk = safeRisk(day);
               const expanded = expandedDay === day.id;
               const maxInterval = Math.max(
@@ -252,7 +295,7 @@ export default function SummaryPage() {
                     <div className="summary-native-day-summary">
                       <p className="summary-native-day-score">
                         {day.exposureLoad}
-                        <span>{t("score", "分")}</span>
+                        <span>µg/m³</span>
                       </p>
 
                       <span className="summary-risk-chip" style={{ backgroundColor: risk.color }}>
@@ -348,7 +391,7 @@ export default function SummaryPage() {
                             ? t("Distance and duration use the road route calculated from real GPS points.", "距離與時間使用真實 GPS 點計算出的道路路線。")
                           : day.isPersonal
                             ? t("Duration is estimated from distance because timestamp gaps were unavailable.", "因缺少可用時間戳，時間由距離估算。")
-                          : t("Allow GPS on Home and move with the phone to build this history automatically.", "在首頁允許 GPS 並帶著手機移動後，這裡會自動建立歷史。")}
+                          : t("Allow GPS on Home and keep the PWA open while moving to build this history automatically. Browsers cannot keep GPS running after iOS fully suspends the app.", "在首頁允許 GPS，並在移動時保持 PWA 開啟，即可自動建立歷史。當 iOS 完全暫停網頁 App 後，瀏覽器無法繼續在背景收集 GPS。")}
                       </p>
                     </div>
                   )}
@@ -359,7 +402,7 @@ export default function SummaryPage() {
 
           <div className="summary-weekly-box">
             <p className="summary-weekly-text">
-              {t("WEEKLY TOTAL", "每週總計")}: {summary.totalKm.toFixed(2)} KM | AVG {summary.avgPm25.toFixed(1)} PM2.5
+              {isChinese ? `${periodLabel}總計` : `${periodLabel.toUpperCase()} TOTAL`}: {summary.totalKm.toFixed(2)} KM | AVG {summary.avgPm25.toFixed(1)} PM2.5
             </p>
           </div>
         </section>

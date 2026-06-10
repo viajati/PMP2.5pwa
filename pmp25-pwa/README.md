@@ -109,33 +109,28 @@ Simulation behavior:
 
 ## Exposure Calculation
 
-The app uses a time-based exposure model:
+The app uses a route PM average model:
 
 ```text
-segment load = PM2.5 x segment hours x transport exposure multiplier
-total route load = sum(segment load)
-average PM2.5 = time-weighted PM2.5 across route segments
+route load = average PM2.5 across route cities / GPS samples
+city load = current city PM2.5
+distance and minutes = route context only
 ```
-
-Transport multipliers:
-
-- Car: `1.0`
-- Walk: `1.35`
-- Bike: `1.6`
 
 Distance and duration:
 
 - If road routing is available, Home uses OSRM route geometry between sampled points.
 - If OSRM fails, Home falls back to GPS sample-to-sample distance.
 - Walking and biking use road geometry but estimate travel time from typical speeds.
-- Summary prefers saved road-route summary when available; otherwise it uses GPS timestamps and distance.
+- Distance and minutes do not change the route load number.
+- Summary prefers saved road-route distance when available; otherwise it uses GPS timestamps and distance.
 
 ## Records
 
 Records has three sections:
 
 - Live: city-level PM2.5, PM10, CO, temperature, humidity, wind, weather state, CAQI-style score, and safety advice.
-- Planner: origin, destination, transport mode, route calculation, distance, time, average PM2.5, and exposure load.
+- Planner: origin, destination, transport mode, route calculation, distance, time, average PM2.5, and route PM average.
 - Forecast: daily PM2.5, PM10, and CO prediction derived from hourly air quality forecasts.
 
 Buttons and controls:
@@ -145,8 +140,8 @@ Buttons and controls:
 - Region buttons: filter city list by North, West, South, East.
 - City rows: select a city for detailed live weather and air data.
 - Planner selects: choose origin and destination.
-- Car/Bike/Walk: select transport exposure mode.
-- Calculate: fetches a road route and computes exposure load.
+- Car/Bike/Walk: select transport mode for distance/time context.
+- Calculate: fetches a road route and computes route PM average.
 
 ## Summary
 
@@ -154,12 +149,13 @@ Summary is the user's personal history log.
 
 It displays:
 
-- Today's exposure load.
-- Weekly distance.
-- Weekly load.
+- Today's route PM average.
+- Weekly, monthly, and yearly summary ranges.
+- Period distance.
+- Period PM average.
 - Average PM2.5.
 - Active days.
-- Seven-day history cards.
+- Seven-day history cards, plus recorded GPS days for longer ranges.
 - Expandable daily details.
 - Distance, average, peak, and low PM2.5.
 - Time interval breakdown: `00-06`, `06-12`, `12-18`, `18-24`.
@@ -167,6 +163,7 @@ It displays:
 - Route source and transport mode.
 
 Important: Summary is based on real GPS route history, not Home simulation mode.
+The PWA records GPS while the app is open and the browser grants location access. iOS and mobile browsers can suspend web apps in the background, so true always-on background geolocation requires a native wrapper or platform background-location service.
 
 ## Setup
 

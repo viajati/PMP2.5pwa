@@ -8,8 +8,13 @@ import { getNearestCity } from "@/lib/cities";
 
 const DEFAULT_PM25 = 24;
 const FALLBACK_SPEED_KMH = 5;
-const EXPOSURE_MULTIPLIER = 1.35;
 const MAX_SEGMENT_MINUTES_FROM_GPS = 12 * 60;
+
+export const SUMMARY_PERIODS = {
+  weekly: { key: "weekly", days: 7, label: "Weekly", shortLabel: "7D" },
+  monthly: { key: "monthly", days: 30, label: "Monthly", shortLabel: "30D" },
+  yearly: { key: "yearly", days: 365, label: "Yearly", shortLabel: "365D" },
+};
 
 function displayDate(offset = 0) {
   const d = new Date();
@@ -71,10 +76,10 @@ export function exposureRisk(score) {
 
 function emptyIntervals() {
   return [
-    { label: "00–06", start: 0, end: 6, hits: 0, km: 0, minutes: 0, exposureLoad: 0, avgPm25: 0, pm25WeightedMinutes: 0 },
-    { label: "06–12", start: 6, end: 12, hits: 0, km: 0, minutes: 0, exposureLoad: 0, avgPm25: 0, pm25WeightedMinutes: 0 },
-    { label: "12–18", start: 12, end: 18, hits: 0, km: 0, minutes: 0, exposureLoad: 0, avgPm25: 0, pm25WeightedMinutes: 0 },
-    { label: "18–24", start: 18, end: 24, hits: 0, km: 0, minutes: 0, exposureLoad: 0, avgPm25: 0, pm25WeightedMinutes: 0 },
+    { label: "00–06", start: 0, end: 6, hits: 0, km: 0, minutes: 0, exposureLoad: 0, avgPm25: 0, pm25Sum: 0, pm25Count: 0 },
+    { label: "06–12", start: 6, end: 12, hits: 0, km: 0, minutes: 0, exposureLoad: 0, avgPm25: 0, pm25Sum: 0, pm25Count: 0 },
+    { label: "12–18", start: 12, end: 18, hits: 0, km: 0, minutes: 0, exposureLoad: 0, avgPm25: 0, pm25Sum: 0, pm25Count: 0 },
+    { label: "18–24", start: 18, end: 24, hits: 0, km: 0, minutes: 0, exposureLoad: 0, avgPm25: 0, pm25Sum: 0, pm25Count: 0 },
   ];
 }
 
@@ -134,21 +139,24 @@ function addIntervalSegment(bins, segment) {
   bin.hits += 1;
   bin.km += segment.km;
   bin.minutes += segment.minutes;
-  bin.exposureLoad += segment.exposureLoad;
-  bin.pm25WeightedMinutes += segment.pm25 * segment.minutes;
+  bin.pm25Sum += segment.pm25;
+  bin.pm25Count += 1;
 }
 
 function finalizeIntervals(bins) {
-  return bins.map((bin) => ({
-    ...bin,
-    km: Number(bin.km.toFixed(2)),
-    minutes: Math.round(bin.minutes),
-    avgPm25:
-      bin.minutes > 0
-        ? Number((bin.pm25WeightedMinutes / bin.minutes).toFixed(1))
-        : 0,
-    exposureLoad: Number(bin.exposureLoad.toFixed(1)),
-  }));
+  return bins.map((bin) => {
+    const avgPm25 = bin.pm25Count > 0
+      ? Number((bin.pm25Sum / bin.pm25Count).toFixed(1))
+      : 0;
+
+    return {
+      ...bin,
+      km: Number(bin.km.toFixed(2)),
+      minutes: Math.round(bin.minutes),
+      avgPm25,
+      exposureLoad: avgPm25,
+    };
+  });
 }
 
 function cityPathFor(route) {
@@ -186,8 +194,7 @@ export function buildRouteStats(route = [], storedSummary = null) {
 
   let km = 0;
   let minutes = 0;
-  let exposureLoad = 0;
-  let weightedPmByMinutes = 0;
+  const pmValues = [];
   let peak = 0;
   let low = Number.POSITIVE_INFINITY;
   let timestampSegments = 0;
@@ -198,13 +205,10 @@ export function buildRouteStats(route = [], storedSummary = null) {
     const segmentKm = calculateDistanceKm(prev, curr);
     const duration = segmentMinutes(prev, curr, segmentKm);
     const segmentPm = segmentPm25(prev, curr, storedSummary);
-    const segmentLoad =
-      segmentPm * (duration.minutes / 60) * EXPOSURE_MULTIPLIER;
 
     km += segmentKm;
     minutes += duration.minutes;
-    exposureLoad += segmentLoad;
-    weightedPmByMinutes += segmentPm * duration.minutes;
+    pmValues.push(segmentPm);
     peak = Math.max(peak, segmentPm);
     low = Math.min(low, segmentPm);
     if (duration.source === "timestamp") timestampSegments += 1;
@@ -215,15 +219,14 @@ export function buildRouteStats(route = [], storedSummary = null) {
       km: segmentKm,
       minutes: duration.minutes,
       pm25: segmentPm,
-      exposureLoad: segmentLoad,
     });
   }
 
   const fallbackAvg = Number(storedSummary?.avgPm25) || pointPm25(points[0]) || 0;
-  const avgPm25 =
-    minutes > 0
-      ? weightedPmByMinutes / minutes
-      : fallbackAvg;
+  const measuredPm25 = hasMeasuredPm25(points);
+  const avgPm25 = pmValues.length > 0
+    ? pmValues.reduce((sum, value) => sum + value, 0) / pmValues.length
+    : fallbackAvg;
 
   if (points.length === 1 && fallbackAvg > 0) {
     peak = fallbackAvg;
@@ -238,7 +241,7 @@ export function buildRouteStats(route = [], storedSummary = null) {
   const summaryLow = Number(storedSummary?.lowPm25);
 
   return {
-    avgPm25: Number.isFinite(summaryAvg) && summaryAvg > 0
+    avgPm25: !measuredPm25 && Number.isFinite(summaryAvg) && summaryAvg > 0
       ? summaryAvg
       : Number(avgPm25.toFixed(1)),
     peak: Number.isFinite(summaryPeak) && summaryPeak > 0
@@ -250,9 +253,9 @@ export function buildRouteStats(route = [], storedSummary = null) {
     minutes: Number.isFinite(summaryMinutes) && summaryMinutes > 0
       ? Math.round(summaryMinutes)
       : Math.round(minutes),
-    exposureLoad: Number.isFinite(summaryExposure) && summaryExposure > 0
+    exposureLoad: !measuredPm25 && Number.isFinite(summaryExposure) && summaryExposure > 0
       ? Number(summaryExposure.toFixed(1))
-      : Number(exposureLoad.toFixed(1)),
+      : Number(avgPm25.toFixed(1)),
     km: Number.isFinite(summaryDistance) && summaryDistance > 0
       ? Number(summaryDistance.toFixed(2))
       : Number(km.toFixed(2)),
@@ -269,15 +272,15 @@ export function buildRouteStats(route = [], storedSummary = null) {
     routeSource: storedSummary?.routeSource || "",
     isFallback:
       points.length > 1 &&
-      !hasMeasuredPm25(points) &&
+      !measuredPm25 &&
       !Number(storedSummary?.avgPm25),
   };
 }
 
-export function buildWeeklySummary(routeMap = null) {
+export function buildPeriodSummary(routeMap = null, dayCount = SUMMARY_PERIODS.weekly.days) {
   const days = [];
 
-  for (let i = 0; i < 7; i += 1) {
+  for (let i = 0; i < dayCount; i += 1) {
     const entry = getStoredRouteEntryByOffset(i, routeMap);
     const stats = buildRouteStats(entry.points, entry.summary);
 
@@ -293,20 +296,40 @@ export function buildWeeklySummary(routeMap = null) {
   }
 
   const totalKm = days.reduce((sum, day) => sum + day.km, 0);
-  const totalExposure = days.reduce((sum, day) => sum + day.exposureLoad, 0);
   const activeDays = days.filter((day) => day.km > 0).length;
+  const activeRouteDays = days.filter((day) => day.isPersonal && day.avgPm25 > 0);
 
   const avgPm25 =
-    activeDays > 0
-      ? days.reduce((sum, day) => sum + (day.km > 0 ? day.avgPm25 : 0), 0) /
-        activeDays
+    activeRouteDays.length > 0
+      ? activeRouteDays.reduce((sum, day) => sum + day.avgPm25, 0) /
+        activeRouteDays.length
       : 0;
+  const peakPm25 = activeRouteDays.length > 0
+    ? Math.max(...activeRouteDays.map((day) => day.peak || 0))
+    : 0;
+  const lowPm25 = activeRouteDays.length > 0
+    ? Math.min(...activeRouteDays.map((day) => day.low || 0).filter((value) => value > 0))
+    : 0;
 
   return {
     days,
     totalKm: Number(totalKm.toFixed(2)),
-    totalExposure: Number(totalExposure.toFixed(1)),
+    totalExposure: Number(avgPm25.toFixed(1)),
     activeDays,
     avgPm25: Number(avgPm25.toFixed(1)),
+    peakPm25: Number(peakPm25.toFixed(1)),
+    lowPm25: Number((Number.isFinite(lowPm25) ? lowPm25 : 0).toFixed(1)),
+    dayCount,
   };
+}
+
+export function buildWeeklySummary(routeMap = null) {
+  return buildPeriodSummary(routeMap, SUMMARY_PERIODS.weekly.days);
+}
+
+export function buildAllSummaries(routeMap = null) {
+  return Object.values(SUMMARY_PERIODS).reduce((result, period) => ({
+    ...result,
+    [period.key]: buildPeriodSummary(routeMap, period.days),
+  }), {});
 }

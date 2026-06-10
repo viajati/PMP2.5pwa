@@ -38,7 +38,7 @@ import {
   fetchAllCityAirQuality,
   fetchHourlyAirQuality,
 } from "@/lib/airQuality";
-import { fetchRoute, estimateExposureLoad } from "@/lib/routePlanner";
+import { fetchRoute, estimateRoutePmLoad } from "@/lib/routePlanner";
 
 const RoutePreviewMap = dynamic(() => import("@/components/RoutePreviewMap"), { ssr: false });
 
@@ -114,12 +114,6 @@ function routeMinutesFor(mode, km) {
   if (mode === "walk") return Math.round(km * 12);
   if (mode === "bike") return Math.round(km * 4);
   return Math.round(km * 1.4);
-}
-
-function exposureMultiplierFor(mode) {
-  if (mode === "walk") return 1.35;
-  if (mode === "bike") return 1.6;
-  return 1;
 }
 
 function normalizeWeatherBackgroundType(type) {
@@ -356,8 +350,7 @@ export default function RecordsPage() {
 
   const destination = rows.find((item) => item.county === endCity) || selected;
   const avgRoutePm25 = Number((((selected?.pm25 || 0) + (destination?.pm25 || 0)) / 2).toFixed(1));
-  const exposureMultiplier = exposureMultiplierFor(transport);
-  const routeLoad = Number((avgRoutePm25 * (routeMinutes / 60) * exposureMultiplier).toFixed(1));
+  const routeLoad = estimateRoutePmLoad(avgRoutePm25);
   const displayedDistance = routeData?.distance ?? routeKm;
   const displayedDuration = routeData?.duration ?? routeMinutes;
   const displayedLoad = routeData?.load ?? routeLoad;
@@ -397,7 +390,7 @@ export default function RecordsPage() {
     : mode === "FORECAST"
       ? `${t("Trend", "趨勢")}：${drift > 0 ? t("PM2.5 may increase tomorrow.", "明天 PM2.5 可能上升。") : t("Stable or lower PM2.5 expected tomorrow.", "明天 PM2.5 預期持平或下降。")}`
       : routeData
-        ? `${cityName(startCity, isChinese)} → ${cityName(endCity, isChinese)} · ${displayedDistance.toFixed(1)} KM · ${Math.round(displayedDuration)} ${t("min", "分鐘")} · ${displayedLoad} ${t("score", "分")}`
+        ? `${cityName(startCity, isChinese)} → ${cityName(endCity, isChinese)} · ${displayedDistance.toFixed(1)} KM · ${Math.round(displayedDuration)} ${t("min", "分鐘")} · ${displayedLoad} µg/m³`
       : t("Pick origin, destination, and transport to optimize exposure along the route.", "選擇起點、目的地與交通方式來優化路線暴露。");
   const adviceSourceLabel = healthAdvice.source === "ai"
     ? t("Gemini profile advice", "Gemini 個人化建議")
@@ -427,7 +420,7 @@ export default function RecordsPage() {
       const fallbackDuration = routeMinutes;
       const distance = route?.distance ?? fallbackDistance;
       const duration = route?.duration ?? fallbackDuration;
-      const load = estimateExposureLoad(avgRoutePm25, duration, transport);
+      const load = estimateRoutePmLoad(avgRoutePm25);
 
       setRouteData({
         coords: route?.coords || [],
@@ -769,13 +762,13 @@ export default function RecordsPage() {
                   </div>
 
                   <div className="records2-soft records-metric-span">
-                    <p className="records2-label">{t("Exposure Load", "暴露負荷")}</p>
+                    <p className="records2-label">{t("Route PM Avg", "路線 PM 平均")}</p>
                     <p
                       className="records2-value records2-value-md"
                       style={{ "--value-color": pmColor(avgRoutePm25) }}
                     >
                       {displayedLoad}
-                      <span className="records2-unit">{t("score", "分")}</span>
+                      <span className="records2-unit">µg/m³</span>
                     </p>
                   </div>
                 </div>
@@ -791,8 +784,8 @@ export default function RecordsPage() {
 
               <p className="records-map-note">
                 {t(
-                  "Blue marker = origin. Red marker = destination. Cyan line = calculated route. Avg PM2.5 is applied over travel time, then adjusted by transport exposure rate.",
-                  "藍色標記代表起點，紅色標記代表目的地，青色線條代表計算路線。平均 PM2.5 會套用到旅行時間，再依交通暴露率調整。"
+                  "Blue marker = origin. Red marker = destination. Cyan line = calculated route. Route load is the average PM2.5 between the route cities; time does not change it.",
+                  "藍色標記代表起點，紅色標記代表目的地，青色線條代表計算路線。路線負荷為路線城市的平均 PM2.5，時間不會影響此數值。"
                 )}
               </p>
             </>

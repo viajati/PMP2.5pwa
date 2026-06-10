@@ -47,14 +47,7 @@ export function routeDurationForMode(mode = "car", distanceKm = 0, drivingMinute
   return (distanceKm / speed) * 60;
 }
 
-export function exposureMultiplierForMode(mode = "car") {
-  if (mode === "walk") return 1.35;
-  if (mode === "bike") return 1.6;
-  return 1;
-}
-
-export function estimateExposureLoad(pm25, minutes, mode = "car") {
-  return Number(
-    (pm25 * (minutes / 60) * exposureMultiplierForMode(mode)).toFixed(1)
-  );
+export function estimateRoutePmLoad(pm25) {
+  const value = Number(pm25);
+  return Number.isFinite(value) ? Number(value.toFixed(1)) : 0;
 }

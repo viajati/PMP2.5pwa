@@ -43,7 +43,6 @@ import {
 import { fetchHourlyAirQuality } from "@/lib/airQuality";
 import { buildRouteStats } from "@/lib/summaryStats";
 import {
-  exposureMultiplierForMode,
   fetchRoute,
   routeDurationForMode,
 } from "@/lib/routePlanner";
@@ -132,11 +131,9 @@ function pointPm25(point) {
 function calculateRoadExposure(routePoints, routedSegments, mode, fallbackStats) {
   if (!routedSegments?.length) return fallbackStats;
 
-  const multiplier = exposureMultiplierForMode(mode);
   let distance = 0;
   let minutes = 0;
-  let exposureLoad = 0;
-  let weightedPm = 0;
+  const pmValues = [];
   let peak = 0;
   let low = Number.POSITIVE_INFINITY;
 
@@ -148,22 +145,24 @@ function calculateRoadExposure(routePoints, routedSegments, mode, fallbackStats)
       pointPm25(start) ||
       fallbackStats.avgPm25 ||
       0;
-    const segmentLoad = pm25 * (segment.duration / 60) * multiplier;
 
     distance += segment.distance;
     minutes += segment.duration;
-    exposureLoad += segmentLoad;
-    weightedPm += pm25 * segment.duration;
+    pmValues.push(pm25);
     peak = Math.max(peak, pm25);
     low = Math.min(low, pm25);
   });
+
+  const avgPm25 = pmValues.length > 0
+    ? pmValues.reduce((sum, value) => sum + value, 0) / pmValues.length
+    : fallbackStats.avgPm25;
 
   return {
     ...fallbackStats,
     km: Number(distance.toFixed(2)),
     minutes: Math.round(minutes),
-    exposureLoad: Number(exposureLoad.toFixed(1)),
-    avgPm25: minutes > 0 ? Number((weightedPm / minutes).toFixed(1)) : fallbackStats.avgPm25,
+    exposureLoad: Number(avgPm25.toFixed(1)),
+    avgPm25: Number(avgPm25.toFixed(1)),
     peak: Number((peak || fallbackStats.peak || 0).toFixed(1)),
     low: Number((low === Number.POSITIVE_INFINITY ? fallbackStats.low || 0 : low).toFixed(1)),
   };
@@ -468,9 +467,7 @@ export default function HomePage() {
         );
 
         const currentCityPm25 = cityPmMap[currentCity] || 0;
-        const currentCityExposure = Number(
-          (currentCityPm25 * 1 * 1.35).toFixed(1)
-        );
+        const currentCityExposure = Number(currentCityPm25.toFixed(1));
 
         let routeMetadataChanged = false;
         const enrichedRoute = activePath.map((point) => {
@@ -532,8 +529,7 @@ export default function HomePage() {
             duration: roadRoute
               ? `${transportName(routeMode, false)} route duration`
               : stats.durationSource,
-            exposure: `sum of PM2.5 x segment hours x ${routeMode} exposure rate`,
-            multiplier: exposureMultiplierForMode(routeMode),
+            exposure: "average PM2.5 across route cities/GPS samples",
           },
           updatedAt: Date.now(),
         };
@@ -571,7 +567,6 @@ export default function HomePage() {
             ? roadRoute?.source || "Simulation"
             : roadRoute?.source || "GPS samples",
           routeKind: teleopMode ? "simulation" : "gps",
-          multiplier: exposureMultiplierForMode(routeMode),
         });
       } catch {
         if (!alive) return;
@@ -715,10 +710,9 @@ export default function HomePage() {
     : cityPathFromPoints(activePath);
   const routeCityPathVisible = visibleCityPath(routeCityPath, routePathOpen);
   const routeCityPathHiddenCount = Math.max(0, routeCityPath.length - 4);
-  const modeFactor = routeLoad?.multiplier ?? exposureMultiplierForMode(routeMode);
   const routeFormula = t(
-    `Load is summed by time: each road segment uses PM2.5 × segment hours × ${transportName(routeMode, false)} exposure rate (${modeFactor}x per travel hour). Avg PM2.5 (${routeLoad?.avgPm25 ?? 0}) is weighted by segment time, not just city count.`,
-    `負荷會依時間加總：每段道路使用 PM2.5 × 該段小時 × ${transportName(routeMode, true)}暴露率（每小時 ${modeFactor}x）。平均 PM2.5 (${routeLoad?.avgPm25 ?? 0}) 依各路段時間加權，不只是城市數量平均。`
+    `Route load is the simple PM2.5 average of the route cities/GPS samples (${routeLoad?.avgPm25 ?? 0} µg/m³). Distance and minutes stay visible for context, but they do not change this number.`,
+    `路線負荷是路線城市／GPS 點的 PM2.5 簡單平均（${routeLoad?.avgPm25 ?? 0} µg/m³）。距離與時間只作為路線背景資訊，不會影響此數值。`
   );
 
   return (
@@ -840,8 +834,8 @@ export default function HomePage() {
                 </p>
                 <p className="simulation-copy">
                   {t(
-                    "Each marker move adds a simulation point. Home routes between points by road when available, then scores exposure by segment time.",
-                    "每次移動標記都會新增模擬點。首頁會盡量用道路連接各點，再依路段時間計算暴露。"
+                    "Each marker move adds a simulation point. Home routes between points by road when available, then averages PM2.5 across the route cities.",
+                    "每次移動標記都會新增模擬點。首頁會盡量用道路連接各點，再平均路線城市的 PM2.5。"
                   )}
                 </p>
               </>
@@ -891,7 +885,7 @@ export default function HomePage() {
                   {cityName(currentCity, isChinese)}
                 </p>
                 <p className="home-info-toggle-meta">
-                  {transportName(routeMode, isChinese)} · {Number(displayedDistance || 0).toFixed(2)} KM · {routeLoadLoading ? "..." : routeLoad?.exposureLoad ?? 0} {t("score", "分")}
+                  {transportName(routeMode, isChinese)} · {Number(displayedDistance || 0).toFixed(2)} KM · {routeLoadLoading ? "..." : routeLoad?.exposureLoad ?? 0} µg/m³
                 </p>
               </div>
               <span className="home-info-toggle-icon">
@@ -917,10 +911,10 @@ export default function HomePage() {
                 </div>
 
                 <div className="home-bottom-cell">
-                  <p className="home-bottom-label">{t("1h City Load", "1 小時城市負荷")}</p>
+                  <p className="home-bottom-label">{t("City PM2.5", "城市 PM2.5")}</p>
                   <p className="home-bottom-value-strong">
                     {routeLoadLoading ? "..." : routeLoad?.currentCityExposure ?? 0}
-                    <span className="home-bottom-unit">{t("score", "分")}</span>
+                    <span className="home-bottom-unit">µg/m³</span>
                   </p>
                   <p className="home-bottom-sub">{t("local estimate", "本地估算")}</p>
                 </div>
@@ -1008,10 +1002,10 @@ export default function HomePage() {
                 </div>
 
                 <div className="home-bottom-cell">
-                  <p className="home-bottom-label">{t("Total Route Load", "總路線負荷")}</p>
+                  <p className="home-bottom-label">{t("Route PM Avg", "路線 PM 平均")}</p>
                   <p className="home-bottom-value-strong">
                     {routeLoadLoading ? "..." : routeLoad?.exposureLoad ?? 0}
-                    <span className="home-bottom-unit">{t("score", "分")}</span>
+                    <span className="home-bottom-unit">µg/m³</span>
                   </p>
                 </div>
               </div>
