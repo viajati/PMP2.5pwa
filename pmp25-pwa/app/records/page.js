@@ -121,6 +121,35 @@ function normalizeWeatherBackgroundType(type) {
   return type;
 }
 
+function geminiFallbackReason(error = "", t) {
+  const message = String(error || "").toLowerCase();
+
+  if (!message) return "";
+  if (message.includes("quota")) {
+    return t(
+      "Gemini quota limit reached. Using profile rules until quota resets.",
+      "Gemini 額度已達上限，額度重置前會使用健康設定規則。"
+    );
+  }
+  if (message.includes("api_key") || message.includes("key")) {
+    return t(
+      "Gemini key is not available in this deployment. Using profile rules.",
+      "此部署未取得 Gemini 金鑰，會使用健康設定規則。"
+    );
+  }
+  if (message.includes("model")) {
+    return t(
+      "Gemini model is unavailable. Check GEMINI_MODEL in Vercel.",
+      "Gemini 模型不可用，請檢查 Vercel 的 GEMINI_MODEL。"
+    );
+  }
+
+  return t(
+    "Gemini is temporarily unavailable. Using profile rules.",
+    "Gemini 暫時不可用，會使用健康設定規則。"
+  );
+}
+
 function RingGauge({ value, label, subLabel, color = "#FFCC00" }) {
   const clamped = Math.max(1, Math.min(100, Number(value) || 0));
 
@@ -402,6 +431,9 @@ export default function RecordsPage() {
   const adviceSourceLabel = healthAdvice.source === "ai"
     ? t("Gemini profile advice", "Gemini 個人化建議")
     : t("Profile-based advice", "健康設定建議");
+  const adviceFallbackReason = healthAdvice.source !== "ai"
+    ? geminiFallbackReason(healthAdvice.providerError, t)
+    : "";
 
   function forecastDayLabel(day) {
     if (!isChinese) return day.day;
@@ -577,6 +609,12 @@ export default function RecordsPage() {
                         <li key={action}>{action}</li>
                       ))}
                     </ul>
+                  )}
+
+                  {!adviceLoading && adviceFallbackReason && (
+                    <p className="records-advice-status">
+                      {adviceFallbackReason}
+                    </p>
                   )}
                 </div>
               ) : (

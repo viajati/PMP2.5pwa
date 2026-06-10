@@ -1833,6 +1833,17 @@ button:disabled {
   background: var(--app-cyan);
 }
 
+.records-advice-status {
+  margin-top: 10px;
+  border-radius: 14px;
+  background: rgba(255, 204, 0, 0.12);
+  padding: 8px 10px;
+  color: var(--text-soft);
+  font-size: 10px;
+  font-weight: 850;
+  line-height: 1.35;
+}
+
 .records2-region-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
