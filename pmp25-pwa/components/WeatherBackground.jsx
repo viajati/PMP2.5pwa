@@ -140,7 +140,7 @@ function Wind() {
           className="weather-wind-line"
           style={{
             "--wind-y": `${20 + index * 25}px`,
-            "--wind-delay": `${(index * 111) % 900}ms`,
+            "--wind-delay": `-${150 + ((index * 111) % 900)}ms`,
             "--wind-duration": `${1500 + ((index * 137) % 1000)}ms`,
           }}
         />
@@ -151,7 +151,7 @@ function Wind() {
           className="weather-leaf"
           style={{
             "--leaf-y": `${(index * 73 + 19) % 300}px`,
-            "--leaf-delay": `${(index * 173) % 1800}ms`,
+            "--leaf-delay": `-${240 + ((index * 173) % 1800)}ms`,
             "--leaf-duration": `${4000 + ((index * 197) % 2000)}ms`,
           }}
         />

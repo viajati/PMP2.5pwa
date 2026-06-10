@@ -2455,6 +2455,8 @@ button:disabled {
   border-radius: 1.5px;
   background: rgba(255, 255, 255, 0.6);
   box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+  opacity: 0;
+  transform: translate3d(calc(-1 * var(--phone-width)), 0, 0) skewX(-20deg);
   will-change: transform, opacity;
   animation: weather-wind-line var(--wind-duration) cubic-bezier(0.4, 0, 0.2, 1) var(--wind-delay) infinite;
 }
@@ -2469,6 +2471,8 @@ button:disabled {
   border-bottom-right-radius: 12px;
   background: rgba(255, 255, 255, 0.7);
   box-shadow: 0 0 5px rgba(255, 255, 255, 0.4);
+  opacity: 0;
+  transform: translate3d(-100px, 0, 0) rotate(0deg);
   will-change: transform, opacity;
   animation: weather-leaf-float var(--leaf-duration) linear var(--leaf-delay) infinite;
 }
@@ -2523,7 +2527,7 @@ button:disabled {
 @keyframes weather-wind-line {
   0% {
     opacity: 0;
-    transform: translateX(calc(-1 * var(--phone-width))) skewX(-20deg);
+    transform: translate3d(calc(-1 * var(--phone-width)), 0, 0) skewX(-20deg);
   }
   30%,
   70% {
@@ -2531,7 +2535,7 @@ button:disabled {
   }
   100% {
     opacity: 0;
-    transform: translateX(calc(var(--phone-width) + 50px)) skewX(-20deg);
+    transform: translate3d(calc(var(--phone-width) + 50px), 0, 0) skewX(-20deg);
   }
 }
 

@@ -42,6 +42,18 @@ const PERIOD_LABELS_ZH = {
   yearly: "每年",
 };
 
+const HISTORY_LOG_LABELS_EN = {
+  weekly: "WEEKLY HISTORY LOG",
+  monthly: "MONTHLY HISTORY LOG",
+  yearly: "YEARLY HISTORY LOG",
+};
+
+const HISTORY_LOG_LABELS_ZH = {
+  weekly: "每週歷史紀錄",
+  monthly: "每月歷史紀錄",
+  yearly: "每年歷史紀錄",
+};
+
 export default function SummaryPage() {
   const { prefs, t } = useAppPreferences();
   const { user, firebaseReady } = useAuth();
@@ -95,6 +107,9 @@ export default function SummaryPage() {
     ? PERIOD_LABELS_ZH[periodKey]
     : activePeriod.label;
   const periodDaysLabel = activePeriod.shortLabel;
+  const historyLogLabel = isChinese
+    ? HISTORY_LOG_LABELS_ZH[periodKey] || HISTORY_LOG_LABELS_ZH.weekly
+    : HISTORY_LOG_LABELS_EN[periodKey] || HISTORY_LOG_LABELS_EN.weekly;
   const visibleDays = periodKey === "weekly"
     ? summary.days
     : summary.days.filter((day) => day.isPersonal).slice(0, 40);
@@ -260,7 +275,7 @@ export default function SummaryPage() {
             <div className="summary-native-heading-title">
               <BarChart3 className="forecast-icon-accent" size={22} strokeWidth={3} />
               <h2 className="summary-native-section-title">
-                {isChinese ? `歷史紀錄 (${periodDaysLabel})` : `HISTORY LOG (${periodDaysLabel})`}
+                {historyLogLabel} ({periodDaysLabel})
               </h2>
             </div>
             <p className="summary-action-hint">{t("Tap to expand", "點擊展開")}</p>
