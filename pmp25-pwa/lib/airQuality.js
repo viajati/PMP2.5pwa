@@ -1,5 +1,7 @@
 import { CITY_COORDS, REGIONS } from "@/lib/cities";
 
+export const OPEN_METEO_TIMEZONE = "Asia/Taipei";
+
 function cityRegion(city) {
   for (const [region, cities] of Object.entries(REGIONS)) {
     if (cities.includes(city)) return region;
@@ -23,11 +25,11 @@ export async function fetchAllCityAirQuality() {
 
   const aqUrl =
     `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lats}&longitude=${lons}` +
-    `&current=pm2_5,pm10,carbon_monoxide&timezone=Asia/Taipei`;
+    `&current=pm2_5,pm10,carbon_monoxide&timezone=${encodeURIComponent(OPEN_METEO_TIMEZONE)}`;
 
   const weatherUrl =
     `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}` +
-    `&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m&timezone=Asia/Taipei`;
+    `&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m&timezone=${encodeURIComponent(OPEN_METEO_TIMEZONE)}`;
 
   const [aqResult, weatherResult] = await Promise.allSettled([
     fetchWithTimeout(aqUrl),
@@ -65,6 +67,14 @@ export async function fetchAllCityAirQuality() {
       weatherCode: weather.weather_code ?? null,
       windSpeed: weather.wind_speed_10m ?? null,
       time: aq.time ? aq.time.replace("T", " ") : "Now",
+      timezone: aqItem?.timezone || OPEN_METEO_TIMEZONE,
+      timezoneAbbreviation: aqItem?.timezone_abbreviation || "GMT+8",
+      utcOffsetSeconds: aqItem?.utc_offset_seconds ?? 28800,
+      apiLatitude: aqItem?.latitude ?? null,
+      apiLongitude: aqItem?.longitude ?? null,
+      apiElevation: aqItem?.elevation ?? null,
+      inputLatitude: CITY_COORDS[city].latitude,
+      inputLongitude: CITY_COORDS[city].longitude,
       source: "open-meteo",
     };
   });
@@ -76,7 +86,7 @@ export async function fetchHourlyAirQuality(city, forecastDays = 1) {
 
   const url =
     `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${coords.latitude}&longitude=${coords.longitude}` +
-    `&hourly=pm2_5,pm10,carbon_monoxide&forecast_days=${forecastDays}&timezone=Asia/Taipei`;
+    `&hourly=pm2_5,pm10,carbon_monoxide&forecast_days=${forecastDays}&timezone=${encodeURIComponent(OPEN_METEO_TIMEZONE)}`;
 
   const res = await fetchWithTimeout(url);
   if (!res.ok) throw new Error("Failed to fetch hourly forecast");
@@ -97,6 +107,11 @@ export async function fetchHourlyAirQuality(city, forecastDays = 1) {
     pm25: Number((pm25[index] ?? 0).toFixed(1)),
     pm10: Number((pm10[index] ?? 0).toFixed(1)),
     co: Number((co[index] ?? 0).toFixed(1)),
+    timezone: data.timezone || OPEN_METEO_TIMEZONE,
+    timezoneAbbreviation: data.timezone_abbreviation || "GMT+8",
+    utcOffsetSeconds: data.utc_offset_seconds ?? 28800,
+    apiLatitude: data.latitude ?? null,
+    apiLongitude: data.longitude ?? null,
   }));
 }
 

@@ -158,6 +158,19 @@ function roundedCacheNumber(value, fallback = 0) {
   return Number.isFinite(number) ? Number(number.toFixed(1)) : fallback;
 }
 
+function openMeteoFetchLabel(row, t) {
+  if (!row) return t("Open-Meteo PM2.5", "Open-Meteo PM2.5");
+
+  const time = (row.time || t("Now", "現在")).split(" ")[1] || row.time || t("Now", "現在");
+  const zone = row.timezoneAbbreviation || "GMT+8";
+  const hasGrid = Number.isFinite(Number(row.apiLatitude)) && Number.isFinite(Number(row.apiLongitude));
+  const grid = hasGrid
+    ? ` · ${t("Grid", "網格")} ${Number(row.apiLatitude).toFixed(2)}°N ${Number(row.apiLongitude).toFixed(2)}°E`
+    : "";
+
+  return `${t("Open-Meteo PM2.5", "Open-Meteo PM2.5")} · ${t("Fetch", "更新")}: ${time} ${zone}${grid}`;
+}
+
 function readAdviceCache(key) {
   if (typeof window === "undefined") return null;
 
@@ -721,7 +734,7 @@ export default function RecordsPage() {
                 <p className="records-section-meta">
                   {loading
                     ? t("Loading...", "載入中...")
-                    : `${t("Open-Meteo PM2.5", "Open-Meteo PM2.5")} · ${t("Fetch", "更新")}: ${(selected?.time || t("Now", "現在")).split(" ")[1] || selected?.time}`}
+                    : openMeteoFetchLabel(selected, t)}
                 </p>
               </div>
 

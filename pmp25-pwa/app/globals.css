@@ -1866,9 +1866,12 @@ button:disabled {
 }
 
 .records-section-meta {
+  max-width: 62%;
   color: var(--app-cyan);
   font-size: 10px;
   font-weight: 950;
+  line-height: 1.35;
+  text-align: right;
 }
 
 .records-list {
