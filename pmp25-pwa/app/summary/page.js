@@ -20,6 +20,7 @@ import {
   SUMMARY_PERIODS,
   buildAllSummaries,
   buildWeeklySummary,
+  exposureRisk,
 } from "@/lib/summaryStats";
 import { loadUserRouteHistory } from "@/lib/firebaseData";
 import { routeDateId } from "@/lib/trackStorage";
@@ -53,6 +54,172 @@ const HISTORY_LOG_LABELS_ZH = {
   monthly: "每月歷史紀錄",
   yearly: "每年歷史紀錄",
 };
+
+function dateFromRouteId(id) {
+  const [year, month, day] = String(id || "").split("_").map(Number);
+  if (!year || !month || !day) return null;
+  return new Date(year, month - 1, day);
+}
+
+function formatShortDate(date, chinese = false) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return "";
+
+  if (chinese) return `${date.getMonth() + 1}月${date.getDate()}日`;
+
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
+}
+
+function formatRange(startDate, endDate, chinese = false) {
+  if (!startDate || !endDate) return "";
+  return `${formatShortDate(startDate, chinese)}–${formatShortDate(endDate, chinese)}`;
+}
+
+function periodGroupTitle(date, groupType, chinese = false) {
+  if (groupType === "yearly") {
+    return chinese ? `${date.getFullYear()}年` : `${date.getFullYear()}`;
+  }
+
+  return date.toLocaleDateString(chinese ? "zh-TW" : "en-US", {
+    year: "numeric",
+    month: "long",
+  });
+}
+
+function buildSummaryGroups(days = [], groupType = "monthly", chinese = false) {
+  const groups = new Map();
+
+  days.forEach((day) => {
+    const date = dateFromRouteId(day.id);
+    if (!date) return;
+
+    const groupId = groupType === "yearly"
+      ? `${date.getFullYear()}`
+      : `${date.getFullYear()}_${date.getMonth() + 1}`;
+
+    if (!groups.has(groupId)) {
+      groups.set(groupId, {
+        id: `${groupType}_${groupId}`,
+        groupType,
+        dayName: periodGroupTitle(date, groupType, chinese),
+        date: "",
+        startDate: date,
+        endDate: date,
+        km: 0,
+        minutes: 0,
+        exposureLoadSum: 0,
+        exposureLoadCount: 0,
+        pm25Sum: 0,
+        pm25Count: 0,
+        peak: 0,
+        low: Number.POSITIVE_INFINITY,
+        segments: 0,
+        hits: 0,
+        activeDays: 0,
+        intervals: [],
+        cityPath: [],
+        isPersonal: false,
+        durationSource: "aggregate",
+      });
+    }
+
+    const group = groups.get(groupId);
+    group.startDate = date < group.startDate ? date : group.startDate;
+    group.endDate = date > group.endDate ? date : group.endDate;
+    group.km += Number(day.km) || 0;
+    group.minutes += Number(day.minutes) || 0;
+    group.segments += Number(day.segments) || 0;
+    group.hits += Number(day.hits) || 0;
+
+    if (day.isPersonal) {
+      group.isPersonal = true;
+      group.activeDays += 1;
+    }
+
+    if (Number(day.exposureLoad) > 0) {
+      group.exposureLoadSum += Number(day.exposureLoad);
+      group.exposureLoadCount += 1;
+    }
+
+    if (Number(day.avgPm25) > 0) {
+      group.pm25Sum += Number(day.avgPm25);
+      group.pm25Count += 1;
+    }
+
+    if (Number(day.peak) > 0) group.peak = Math.max(group.peak, Number(day.peak));
+    if (Number(day.low) > 0) group.low = Math.min(group.low, Number(day.low));
+
+    (day.cityPath || []).forEach((city) => {
+      if (city && group.cityPath[group.cityPath.length - 1] !== city) {
+        group.cityPath.push(city);
+      }
+    });
+
+    (day.intervals || []).forEach((interval) => {
+      let aggregateInterval = group.intervals.find((item) => item.label === interval.label);
+      if (!aggregateInterval) {
+        aggregateInterval = {
+          label: interval.label,
+          km: 0,
+          minutes: 0,
+          hits: 0,
+          exposureLoadSum: 0,
+          exposureLoadCount: 0,
+          exposureLoad: 0,
+          avgPm25: 0,
+        };
+        group.intervals.push(aggregateInterval);
+      }
+
+      aggregateInterval.km += Number(interval.km) || 0;
+      aggregateInterval.minutes += Number(interval.minutes) || 0;
+      aggregateInterval.hits += Number(interval.hits) || 0;
+
+      if (Number(interval.exposureLoad) > 0) {
+        aggregateInterval.exposureLoadSum += Number(interval.exposureLoad);
+        aggregateInterval.exposureLoadCount += 1;
+      }
+    });
+  });
+
+  return Array.from(groups.values()).map((group) => {
+    const exposureLoad = group.exposureLoadCount > 0
+      ? group.exposureLoadSum / group.exposureLoadCount
+      : 0;
+    const avgPm25 = group.pm25Count > 0
+      ? group.pm25Sum / group.pm25Count
+      : 0;
+    const finalizedIntervals = group.intervals.map((interval) => {
+      const intervalExposure = interval.exposureLoadCount > 0
+        ? interval.exposureLoadSum / interval.exposureLoadCount
+        : 0;
+
+      return {
+        ...interval,
+        km: Number(interval.km.toFixed(2)),
+        minutes: Math.round(interval.minutes),
+        avgPm25: Number(intervalExposure.toFixed(1)),
+        exposureLoad: Number(intervalExposure.toFixed(1)),
+      };
+    });
+
+    return {
+      ...group,
+      date: formatRange(group.startDate, group.endDate, chinese),
+      km: Number(group.km.toFixed(2)),
+      minutes: Math.round(group.minutes),
+      avgPm25: Number(avgPm25.toFixed(1)),
+      exposureLoad: Number(exposureLoad.toFixed(1)),
+      peak: Number(group.peak.toFixed(1)),
+      low: group.low === Number.POSITIVE_INFINITY ? 0 : Number(group.low.toFixed(1)),
+      intervals: finalizedIntervals,
+      risk: exposureRisk(exposureLoad),
+      source: group.isPersonal ? "route" : "no data",
+    };
+  });
+}
 
 export default function SummaryPage() {
   const { prefs, t } = useAppPreferences();
@@ -110,12 +277,9 @@ export default function SummaryPage() {
   const historyLogLabel = isChinese
     ? HISTORY_LOG_LABELS_ZH[periodKey] || HISTORY_LOG_LABELS_ZH.weekly
     : HISTORY_LOG_LABELS_EN[periodKey] || HISTORY_LOG_LABELS_EN.weekly;
-  const visibleDays = periodKey === "weekly"
+  const displayedEntries = periodKey === "weekly"
     ? summary.days
-    : summary.days.filter((day) => day.isPersonal).slice(0, 40);
-  const displayedDays = visibleDays.length > 0
-    ? visibleDays
-    : summary.days.slice(0, Math.min(7, summary.days.length));
+    : buildSummaryGroups(summary.days, periodKey, isChinese);
   const today = summary.days[0] || {
     km: 0,
     exposureLoad: 0,
@@ -135,7 +299,7 @@ export default function SummaryPage() {
     : t("Phone GPS", "手機 GPS");
   const maxExposure = Math.max(
     1,
-    ...displayedDays.map((day) => day.exposureLoad || 0)
+    ...displayedEntries.map((day) => day.exposureLoad || 0)
   );
 
   return (
@@ -282,13 +446,19 @@ export default function SummaryPage() {
           </div>
 
           <div className="summary-native-list">
-            {displayedDays.map((day) => {
+            {displayedEntries.map((day) => {
               const risk = safeRisk(day);
               const expanded = expandedDay === day.id;
               const maxInterval = Math.max(
                 1,
                 ...(day.intervals || []).map((item) => item.exposureLoad || 0)
               );
+              const title = day.groupType
+                ? day.dayName
+                : summaryDayName(day, isChinese);
+              const subtitle = day.groupType
+                ? `${day.date} · ${day.activeDays} ${t("active days", "活動天")} · ${day.hits} ${t("GPS points", "GPS 點")}`
+                : `${summaryDate(day, isChinese)} · ${day.segments} ${t("segments", "路段")} · ${day.hits} ${t("GPS points", "GPS 點")}`;
 
               return (
                 <button
@@ -300,10 +470,10 @@ export default function SummaryPage() {
                   <div className="summary-history-top">
                     <div className="min-w-0">
                       <p className="summary-history-date">
-                        {summaryDayName(day, isChinese)}
+                        {title}
                       </p>
                       <p className="summary-history-sub">
-                        {summaryDate(day, isChinese)} · {day.segments} {t("segments", "路段")} · {day.hits} {t("GPS points", "GPS 點")}
+                        {subtitle}
                       </p>
                     </div>
 
@@ -385,7 +555,9 @@ export default function SummaryPage() {
                         </p>
 
                         <span className="summary-source-chip">
-                          {day.routeSource
+                          {day.groupType
+                            ? `${day.activeDays} ${t("active days", "活動天")}`
+                            : day.routeSource
                             ? `${routeSourceName(day.routeSource, isChinese)} · ${transportName(day.routeMode, isChinese)}`
                             : day.isPersonal
                               ? t("phone GPS", "手機 GPS")
@@ -395,12 +567,14 @@ export default function SummaryPage() {
 
                       <p className="summary-route-path">
                         {day.cityPath?.length > 0
-                          ? `${t("GPS route", "GPS 路線")}：${day.cityPath.map((city) => cityName(city, isChinese)).join(" → ")}`
+                          ? `${day.groupType ? t("Route cities", "路線城市") : t("GPS route", "GPS 路線")}：${day.cityPath.map((city) => cityName(city, isChinese)).join(" → ")}`
                           : t("No real GPS route recorded for this day.", "這一天沒有真實 GPS 路線紀錄。")}
                       </p>
 
                       <p className="summary-inline-meta mt-2">
-                        {day.durationSource === "timestamp"
+                        {day.groupType
+                          ? t("This row combines real GPS route days in the selected period.", "此列彙整所選期間內的真實 GPS 路線日期。")
+                          : day.durationSource === "timestamp"
                           ? t("Duration comes from phone GPS timestamps.", "時間由手機 GPS 時間戳計算。")
                           : day.durationSource === "road"
                             ? t("Distance and duration use the road route calculated from real GPS points.", "距離與時間使用真實 GPS 點計算出的道路路線。")

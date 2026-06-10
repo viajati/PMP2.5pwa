@@ -721,7 +721,7 @@ export default function RecordsPage() {
                 <p className="records-section-meta">
                   {loading
                     ? t("Loading...", "載入中...")
-                    : `${t("Fetch", "更新")}: ${(selected?.time || t("Now", "現在")).split(" ")[1] || selected?.time}`}
+                    : `${t("Open-Meteo PM2.5", "Open-Meteo PM2.5")} · ${t("Fetch", "更新")}: ${(selected?.time || t("Now", "現在")).split(" ")[1] || selected?.time}`}
                 </p>
               </div>
 
@@ -760,7 +760,7 @@ export default function RecordsPage() {
 
                       <p className="records-row-value">
                         {item.pm25}
-                        <span className="records-row-unit">µg</span>
+                        <span className="records-row-unit">µg/m³ PM2.5</span>
                       </p>
                     </button>
                   );

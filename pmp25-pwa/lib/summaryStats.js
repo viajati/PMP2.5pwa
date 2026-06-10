@@ -102,6 +102,18 @@ function pointPm25(point) {
   return Number.isFinite(value) && value > 0 ? value : null;
 }
 
+function storedPm25Average(storedSummary = null) {
+  const avg = Number(storedSummary?.avgPm25);
+  if (Number.isFinite(avg) && avg > 0) return avg;
+
+  const legacyLoad = Number(storedSummary?.exposureLoad);
+  if (Number.isFinite(legacyLoad) && legacyLoad > 0 && legacyLoad <= 250) {
+    return legacyLoad;
+  }
+
+  return 0;
+}
+
 function fallbackMinutesForDistance(km) {
   return km > 0 ? (km / FALLBACK_SPEED_KMH) * 60 : 0;
 }
@@ -124,7 +136,7 @@ function segmentPm25(prev, curr, storedSummary) {
   return (
     pointPm25(curr) ||
     pointPm25(prev) ||
-    Number(storedSummary?.avgPm25) ||
+    storedPm25Average(storedSummary) ||
     DEFAULT_PM25
   );
 }
@@ -222,7 +234,7 @@ export function buildRouteStats(route = [], storedSummary = null) {
     });
   }
 
-  const fallbackAvg = Number(storedSummary?.avgPm25) || pointPm25(points[0]) || 0;
+  const fallbackAvg = storedPm25Average(storedSummary) || pointPm25(points[0]) || 0;
   const measuredPm25 = hasMeasuredPm25(points);
   const avgPm25 = pmValues.length > 0
     ? pmValues.reduce((sum, value) => sum + value, 0) / pmValues.length
@@ -235,15 +247,15 @@ export function buildRouteStats(route = [], storedSummary = null) {
 
   const summaryDistance = Number(storedSummary?.distanceKm);
   const summaryMinutes = Number(storedSummary?.routeMinutes);
-  const summaryExposure = Number(storedSummary?.exposureLoad);
-  const summaryAvg = Number(storedSummary?.avgPm25);
+  const storedAvgPm25 = storedPm25Average(storedSummary);
   const summaryPeak = Number(storedSummary?.peakPm25);
   const summaryLow = Number(storedSummary?.lowPm25);
+  const displayedAvgPm25 = !measuredPm25 && storedAvgPm25 > 0
+    ? storedAvgPm25
+    : Number(avgPm25.toFixed(1));
 
   return {
-    avgPm25: !measuredPm25 && Number.isFinite(summaryAvg) && summaryAvg > 0
-      ? summaryAvg
-      : Number(avgPm25.toFixed(1)),
+    avgPm25: displayedAvgPm25,
     peak: Number.isFinite(summaryPeak) && summaryPeak > 0
       ? summaryPeak
       : Number((peak || fallbackAvg || 0).toFixed(1)),
@@ -253,9 +265,7 @@ export function buildRouteStats(route = [], storedSummary = null) {
     minutes: Number.isFinite(summaryMinutes) && summaryMinutes > 0
       ? Math.round(summaryMinutes)
       : Math.round(minutes),
-    exposureLoad: !measuredPm25 && Number.isFinite(summaryExposure) && summaryExposure > 0
-      ? Number(summaryExposure.toFixed(1))
-      : Number(avgPm25.toFixed(1)),
+    exposureLoad: displayedAvgPm25,
     km: Number.isFinite(summaryDistance) && summaryDistance > 0
       ? Number(summaryDistance.toFixed(2))
       : Number(km.toFixed(2)),
@@ -273,7 +283,7 @@ export function buildRouteStats(route = [], storedSummary = null) {
     isFallback:
       points.length > 1 &&
       !measuredPm25 &&
-      !Number(storedSummary?.avgPm25),
+      !storedAvgPm25,
   };
 }
 
