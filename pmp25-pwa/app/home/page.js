@@ -9,7 +9,6 @@ import {
   ChevronUp,
   Footprints,
   Gamepad2,
-  Info,
   LocateFixed,
   MapPin,
   RotateCcw,
@@ -64,7 +63,7 @@ const HOME_ROUTE_MODES = [
 ];
 
 const MIN_ROUTED_SEGMENT_KM = 0.05;
-const PM25_SAMPLE_INTERVAL_MS = 60 * 60 * 1000;
+const PM25_SAMPLE_INTERVAL_MS = 10 * 60 * 1000;
 
 function routePointKey(point) {
   return `${Number(point.latitude).toFixed(5)},${Number(point.longitude).toFixed(5)}`;
@@ -162,7 +161,9 @@ async function fetchCurrentCityAirSample(city) {
 
     return {
       ...row,
-      timestamp: rowTimeMs(row) || Date.now(),
+      apiTime: row.time,
+      observedAt: rowTimeMs(row) || null,
+      timestamp: Date.now(),
       pm25: Number(Number(row.pm25).toFixed(1)),
     };
   } catch {
@@ -238,7 +239,6 @@ export default function HomePage() {
   const [roadRoutingLoading, setRoadRoutingLoading] = useState(false);
   const routeCacheRef = useRef(new Map());
   const [simulationHelpOpen, setSimulationHelpOpen] = useState(false);
-  const [calculationOpen, setCalculationOpen] = useState(false);
   const [homeInfoOpen, setHomeInfoOpen] = useState(false);
   const [routePathOpen, setRoutePathOpen] = useState(false);
 
@@ -617,7 +617,7 @@ export default function HomePage() {
             duration: roadRoute
               ? `${transportName(routeMode, false)} route duration`
               : stats.durationSource,
-            exposure: "time-based PM2.5 average from hourly city/location samples",
+            exposure: "time-based PM2.5 average from 10-minute city/location samples",
           },
           updatedAt: Date.now(),
         };
@@ -799,10 +799,6 @@ export default function HomePage() {
     : cityPathFromPoints(activePath);
   const routeCityPathVisible = visibleCityPath(routeCityPath, routePathOpen);
   const routeCityPathHiddenCount = Math.max(0, routeCityPath.length - 4);
-  const routeFormula = t(
-    `Route PM2.5 average uses hourly city/location samples when available (${routeLoad?.avgPm25 ?? 0} µg/m³). Distance and minutes stay visible for context, but they do not change this number.`,
-    `路線 PM2.5 平均會優先使用每小時城市／位置採樣（${routeLoad?.avgPm25 ?? 0} µg/m³）。距離與時間只作為路線背景資訊，不會影響此數值。`
-  );
   const routeSampleLabel = routeLoad?.pm25SampleCount > 0
     ? t("PM samples", "PM 樣本")
     : teleopMode
@@ -1119,24 +1115,7 @@ export default function HomePage() {
                   {t("Reset", "重設")}
                 </button>
 
-                <button
-                  type="button"
-                  className="home-bottom-icon-button"
-                  onClick={() => setCalculationOpen((value) => !value)}
-                  aria-expanded={calculationOpen}
-                  title={t("How PM2.5 avg is calculated", "PM2.5 平均如何計算")}
-                >
-                  <Info size={14} strokeWidth={3} />
-                </button>
               </div>
-
-              {calculationOpen && (
-                <div className="home-bottom-formula">
-                  <p className="home-formula-copy">
-                    {routeFormula}
-                  </p>
-                </div>
-              )}
               </>
             )}
 

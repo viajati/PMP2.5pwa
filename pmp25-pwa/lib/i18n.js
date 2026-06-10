@@ -97,7 +97,7 @@ export function routeSourceName(source, chinese = false) {
   if (source === "OSRM") return chinese ? "道路路線" : "road route";
   if (source === "GPS samples") return chinese ? "手機 GPS" : "phone GPS";
   if (source === "GPS estimate") return chinese ? "GPS 估算" : "GPS estimate";
-  if (source === "Time samples") return chinese ? "定時 PM2.5" : "hourly PM2.5 samples";
+  if (source === "Time samples") return chinese ? "10 分鐘 PM2.5" : "10-min PM2.5 samples";
   if (source === "Simulation") return chinese ? "模擬路線" : "simulation route";
   if (source === "routing road path") return chinese ? "正在規劃道路路線" : "routing road path";
 

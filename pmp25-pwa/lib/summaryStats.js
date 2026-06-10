@@ -126,6 +126,55 @@ function storedPm25Samples(storedSummary = null) {
     .sort((a, b) => (timestampMs(a) || 0) - (timestampMs(b) || 0));
 }
 
+function sampleBucketKey(timestamp = Date.now()) {
+  const date = new Date(timestamp);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hour = String(date.getHours()).padStart(2, "0");
+  const minute = String(Math.floor(date.getMinutes() / 10) * 10).padStart(2, "0");
+
+  return `${year}-${month}-${day}T${hour}:${minute}`;
+}
+
+function mergeMovementSamples(points, samples) {
+  if (!samples.length) return samples;
+
+  const seen = new Set(
+    samples.map((sample) => {
+      const stamp = timestampMs(sample) || Date.now();
+      const city = sample?.city || pointCity(sample);
+      return `${sample.sampleKey || sampleBucketKey(stamp)}_${city}`;
+    })
+  );
+  const movementSamples = [];
+
+  points.forEach((point) => {
+    const pm25 = pointPm25(point);
+    if (pm25 === null) return;
+
+    const timestamp = timestampMs(point) || Date.now();
+    const city = pointCity(point);
+    const sampleKey = sampleBucketKey(timestamp);
+    const key = `${sampleKey}_${city}`;
+
+    if (seen.has(key)) return;
+    seen.add(key);
+
+    movementSamples.push({
+      ...point,
+      source: "movement-sample",
+      timestamp,
+      sampleKey,
+      city,
+      pm25,
+    });
+  });
+
+  return samples.concat(movementSamples)
+    .sort((a, b) => (timestampMs(a) || 0) - (timestampMs(b) || 0));
+}
+
 function storedPm25Average(storedSummary = null) {
   const avg = Number(storedSummary?.avgPm25);
   if (Number.isFinite(avg) && avg > 0) return avg;
@@ -232,7 +281,7 @@ function hasMeasuredPm25(route) {
 export function buildRouteStats(route = [], storedSummary = null) {
   const points = Array.isArray(route) ? route : [];
   const bins = emptyIntervals();
-  const pm25Samples = storedPm25Samples(storedSummary);
+  const pm25Samples = mergeMovementSamples(points, storedPm25Samples(storedSummary));
   const hasPm25Samples = pm25Samples.length > 0;
 
   if (points.length === 0 && !hasPm25Samples) {

@@ -415,10 +415,21 @@ export default function SetupPage() {
           <div className="space-y-3">
             <SettingRow
               icon={ShieldCheck}
-              title={firebaseReady ? (user ? (isChinese ? "雲端同步已連線" : "Cloud Sync Connected") : (isChinese ? "尚未登入" : "Not Signed In")) : (isChinese ? "Firebase 尚未設定" : "Firebase Not Configured")}
-              subtitle={firebaseReady ? (user ? (isChinese ? "偏好、健康資料與路線會同步到 Firestore" : "Preferences, health profile, and routes sync to Firestore") : (isChinese ? "登入後即可同步資料" : "Sign in to sync your data")) : (isChinese ? "加入環境變數後啟用登入與 Firestore" : "Add env values to enable Auth and Firestore")}
-              href={user ? "/verify" : "/login"}
-              right={<ChevronRight size={22} className="summary-expand-icon" />}
+              title={isChinese ? "雲端同步" : "Cloud Sync"}
+              subtitle={firebaseReady ? (user ? (isChinese ? "已連線，資料會自動同步" : "Connected. Data syncs automatically.") : (isChinese ? "登入後即可同步資料" : "Sign in to sync your data.")) : (isChinese ? "Firebase 尚未設定" : "Firebase is not configured.")}
+              right={
+                <span
+                  className={[
+                    "settings-status-pill",
+                    firebaseReady && user ? "settings-status-pill-connected" : "",
+                  ].join(" ")}
+                >
+                  <span />
+                  {firebaseReady && user
+                    ? (isChinese ? "已連線" : "Connected")
+                    : (isChinese ? "未連線" : "Offline")}
+                </span>
+              }
             />
 
             <SettingRow

@@ -1098,22 +1098,6 @@ button:disabled {
   color: var(--app-cyan);
 }
 
-.home-bottom-formula {
-  margin-top: 9px;
-  border-radius: 14px;
-  background: rgba(0, 210, 255, 0.08);
-  padding: 8px 10px;
-  color: var(--text-muted);
-}
-
-.home-formula-copy {
-  margin-top: 7px;
-  color: var(--text-muted);
-  font-size: 9.5px;
-  font-weight: 750;
-  line-height: 1.35;
-}
-
 /* Bottom navigation */
 .bottom-nav {
   pointer-events: none;
@@ -2070,16 +2054,11 @@ button:disabled {
   filter: saturate(0.95) contrast(0.98);
 }
 
-.records-map-note,
 .forecast-updated-at {
   color: var(--text-soft);
   font-size: 12px;
   font-weight: 700;
   line-height: 1.45;
-}
-
-.records-map-note {
-  margin-top: 12px;
 }
 
 /* Forecast */
@@ -3421,6 +3400,37 @@ button:disabled {
   line-height: 1.3;
 }
 
+.settings-status-pill {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 7px;
+  border-radius: var(--radius-round);
+  background: rgba(142, 142, 147, 0.14);
+  padding: 8px 10px;
+  color: var(--text-soft);
+  font-size: 10px;
+  font-weight: 950;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.settings-status-pill span {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: #8e8e93;
+}
+
+.settings-status-pill-connected {
+  background: rgba(52, 199, 89, 0.14);
+  color: #34c759;
+}
+
+.settings-status-pill-connected span {
+  background: #34c759;
+}
+
 .toggle-switch {
   position: relative;
   width: 56px;
@@ -4487,7 +4497,6 @@ html[data-theme="light"] .records-native-ai-text {
 .records-native-content .records-toolbar,
 .records-native-content .records-route-card,
 .records-native-content .records2-map-preview,
-.records-native-content .records-map-note,
 .records-native-content .forecast-shell {
   margin-left: 20px;
   margin-right: 20px;

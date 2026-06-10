@@ -1,9 +1,6 @@
-const CACHE_NAME = "pmp25-pwa-v20260605";
+const CACHE_NAME = "pmp25-pwa-v20260611-10min-samples";
 const CACHE_PREFIX = "pmp25-pwa-";
 const APP_SHELL = [
-  "/",
-  "/home",
-  "/login",
   "/manifest.webmanifest",
   "/icons/icon-192.png",
   "/icons/icon-512.png",

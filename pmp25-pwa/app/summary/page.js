@@ -575,14 +575,14 @@ export default function SummaryPage() {
                         {day.groupType
                           ? t("This row combines PM2.5 sample days in the selected period.", "此列彙整所選期間內的 PM2.5 採樣日期。")
                           : day.durationSource === "time-samples"
-                          ? t("Exposure comes from hourly PM2.5 samples saved while the PWA is open, even if you stay in one place.", "暴露值來自 PWA 開啟時儲存的每小時 PM2.5 採樣，即使停留原地也會記錄。")
+                          ? t("Exposure comes from PM2.5 samples saved every 10 minutes while the PWA is open, even if you stay in one place.", "暴露值來自 PWA 開啟時每 10 分鐘儲存的 PM2.5 採樣，即使停留原地也會記錄。")
                           : day.durationSource === "timestamp"
                           ? t("Duration comes from phone GPS timestamps.", "時間由手機 GPS 時間戳計算。")
                           : day.durationSource === "road"
                             ? t("Distance and duration use the road route calculated from real GPS points.", "距離與時間使用真實 GPS 點計算出的道路路線。")
                           : day.isPersonal
                             ? t("PM2.5 average is based on saved samples; distance is only route context.", "PM2.5 平均來自已儲存採樣，距離只作為路線背景資訊。")
-                          : t("Keep the PWA open on Home to save hourly PM2.5 samples. Browsers cannot keep GPS running after iOS fully suspends the app.", "在首頁保持 PWA 開啟即可儲存每小時 PM2.5 採樣。當 iOS 完全暫停網頁 App 後，瀏覽器無法繼續收集 GPS。")}
+                          : t("Keep the PWA open on Home to save PM2.5 samples every 10 minutes. Browsers cannot keep GPS running after iOS fully suspends the app.", "在首頁保持 PWA 開啟即可每 10 分鐘儲存 PM2.5 採樣。當 iOS 完全暫停網頁 App 後，瀏覽器無法繼續收集 GPS。")}
                       </p>
                     </div>
                   )}

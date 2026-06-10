@@ -29,14 +29,15 @@ function getPm25SamplesKey(routeId = getTodayRouteId()) {
   return `${PM25_SAMPLES_KEY}_${routeId}`;
 }
 
-function localHourKey(timestamp = Date.now()) {
+function localSampleKey(timestamp = Date.now()) {
   const date = new Date(timestamp);
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   const hour = String(date.getHours()).padStart(2, "0");
+  const minute = String(Math.floor(date.getMinutes() / 10) * 10).padStart(2, "0");
 
-  return `${year}-${month}-${day}T${hour}:00`;
+  return `${year}-${month}-${day}T${hour}:${minute}`;
 }
 
 function toRadians(value) {
@@ -143,7 +144,8 @@ export function appendPm25Sample(sample, routeId = getTodayRouteId()) {
 
   const samples = loadPm25SamplesById(routeId);
   const timestamp = Number(sample?.timestamp) || Date.now();
-  const hourKey = sample?.hourKey || localHourKey(timestamp);
+  const sampleKey = sample?.sampleKey || localSampleKey(timestamp);
+  const hourKey = sample?.hourKey || sampleKey.slice(0, 13);
   const city = sample?.city || "Unknown";
   const lat = Number(sample?.latitude);
   const lon = Number(sample?.longitude);
@@ -151,12 +153,13 @@ export function appendPm25Sample(sample, routeId = getTodayRouteId()) {
     Number.isFinite(lat) && Number.isFinite(lon)
       ? `${lat.toFixed(2)}_${lon.toFixed(2)}`
       : city;
-  const id = sample?.id || `${hourKey}_${city}_${locationKey}`;
+  const id = sample?.id || `${sampleKey}_${city}_${locationKey}`;
 
   const nextSample = {
     source: "time-sample",
     ...sample,
     id,
+    sampleKey,
     city,
     hourKey,
     timestamp,

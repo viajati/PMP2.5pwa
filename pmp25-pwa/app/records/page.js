@@ -914,13 +914,6 @@ export default function RecordsPage() {
                   routeCoords={routeData?.coords || []}
                 />
               </div>
-
-              <p className="records-map-note">
-                {t(
-                  "Blue marker = origin. Red marker = destination. Cyan line = calculated route. Route load is the average PM2.5 between the route cities; time does not change it.",
-                  "藍色標記代表起點，紅色標記代表目的地，青色線條代表計算路線。路線負荷為路線城市的平均 PM2.5，時間不會影響此數值。"
-                )}
-              </p>
             </>
           )}
 
