@@ -129,17 +129,23 @@ export async function POST(request) {
     air: body.air || {},
     profile: cleanHealthProfile(body.profile || {}),
   };
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY?.trim();
 
   if (!apiKey) {
-    return Response.json(fallbackAdvice(payload), {
+    const providerError = "GEMINI_API_KEY is missing from this deployment environment.";
+    console.warn(`[health-advice] ${providerError}`);
+
+    return Response.json({
+      ...fallbackAdvice(payload),
+      providerError,
+    }, {
       headers: {
         "Cache-Control": "no-store",
       },
     });
   }
 
-  const model = process.env.GEMINI_MODEL || DEFAULT_MODEL;
+  const model = process.env.GEMINI_MODEL?.trim() || DEFAULT_MODEL;
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
@@ -167,6 +173,8 @@ export async function POST(request) {
     const data = await geminiResponse.json();
 
     if (!geminiResponse.ok) {
+      console.warn("[health-advice] Gemini request failed:", data?.error?.message || geminiResponse.statusText);
+
       return Response.json(
         {
           ...fallbackAdvice(payload),
@@ -189,6 +197,8 @@ export async function POST(request) {
       },
     });
   } catch (error) {
+    console.warn("[health-advice] Gemini fallback:", error.message);
+
     return Response.json(
       {
         ...fallbackAdvice(payload),

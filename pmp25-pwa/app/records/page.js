@@ -299,9 +299,16 @@ export default function RecordsPage() {
         if (!response.ok) throw new Error("AI advice unavailable");
         return response.json();
       })
-      .then((advice) => setAiHealthAdvice(advice))
+      .then((advice) => {
+        if (advice?.providerError) {
+          console.warn("[Records] Gemini advice fallback:", advice.providerError);
+        }
+
+        setAiHealthAdvice(advice);
+      })
       .catch((error) => {
         if (error.name !== "AbortError") {
+          console.warn("[Records] AI advice request failed:", error.message);
           setAiHealthAdvice(null);
         }
       })
