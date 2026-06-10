@@ -69,44 +69,27 @@ function cleanText(value) {
   return typeof value === "string" ? value.trim() : "";
 }
 
-function ageStory(level, chinese) {
-  if (level === 1) return chinese ? "年輕的萌芽，開始認識自己的空氣節奏。" : "A young seedling, starting your journey.";
-  if (level === 2) return chinese ? "正值盛放階段，帶著能量探索日常。" : "In the bloom of life, exploring with energy.";
-  if (level === 3) return chinese ? "穩定前行，帶著清楚的生活步調。" : "A steady guardian, moving with purpose.";
-  if (level === 4) return chinese ? "成熟而敏銳，更值得細緻守護。" : "A wise soul, observing with deep grace.";
-  return chinese ? "選擇年齡階段後，這裡會即時更新。" : "Choose your era and this story updates live.";
-}
+function profileIntroText(type, chinese) {
+  const copy = {
+    age: {
+      en: "Your age group helps assess air pollution risk.",
+      zh: "你的年齡族群有助於評估空氣污染風險。",
+    },
+    vitality: {
+      en: "Current wellness status based on air quality exposure.",
+      zh: "根據空氣品質暴露評估目前健康狀態。",
+    },
+    lifestyle: {
+      en: "Daily habits that influence PM2.5 exposure levels.",
+      zh: "日常習慣會影響 PM2.5 暴露程度。",
+    },
+    strength: {
+      en: "Your ability to cope with environmental pollutants.",
+      zh: "你面對環境污染物時的身體承受能力。",
+    },
+  };
 
-function vitalityStory(selected, chinese) {
-  if (!selected?.length) return chinese ? "目前沒有特殊敏感因子，保持平穩呼吸。" : "Living with pure vitality and peace.";
-
-  const stories = selected
-    .map((id) => conditionOptions.find((item) => item.id === id))
-    .filter(Boolean)
-    .map((item) => chinese ? item.zhStory : item.story);
-
-  if (stories.length === 1) {
-    return chinese ? `正在${stories[0]}，用更溫柔的方式照顧自己。` : `You are ${stories[0]} with gentle care.`;
-  }
-
-  if (stories.length === 2) {
-    return chinese ? `一邊${stories[0]}，一邊${stories[1]}。` : `A soul ${stories[0]} while ${stories[1]}.`;
-  }
-
-  const preview = stories.slice(0, 3).join(chinese ? "、" : ", ");
-  return chinese ? `正在${preview}，並持續照顧其他敏感因子。` : `Guardian of your path, ${preview}, and more.`;
-}
-
-function activityStory(level, chinese) {
-  if (level >= 3) return chinese ? "活動力旺盛，像風一樣穿梭在城市裡。" : "Your spirit is vibrant, dancing with nature's wind.";
-  if (level >= 2) return chinese ? "用平衡的步調穿過日常路線。" : "You move with a balanced rhythm through the world.";
-  return chinese ? "在安靜時刻裡保留自己的節奏。" : "You find stillness and peace in the quiet moments.";
-}
-
-function fitnessStory(level, chinese) {
-  if (level >= 3) return chinese ? "身體韌性強，適合更有強度的活動安排。" : "You possess a soul that is unbreakable and firm.";
-  if (level >= 2) return chinese ? "韌性正在穩定累積。" : "Your resilience is growing steady and strong.";
-  return chinese ? "正在建立溫柔而穩固的基礎。" : "You are nurturing a gentle foundation of strength.";
+  return chinese ? copy[type]?.zh : copy[type]?.en;
 }
 
 function StoryCard({ icon: Icon, title, text, delay = 0 }) {
@@ -375,15 +358,15 @@ export default function ProfilePage() {
               <div className="profile-native-boxes-row">
                 <StoryCard
                   icon={CalendarDays}
-                  title={t("Era", "年齡")}
-                  text={ageStory(profile.ageLevel, isChinese)}
+                  title={t("Age", "年齡")}
+                  text={profileIntroText("age", isChinese)}
                   delay={40}
                 />
 
                 <StoryCard
                   icon={Heart}
-                  title={t("Vitality", "敏感度")}
-                  text={vitalityStory(profile.conditions, isChinese)}
+                  title={t("Vitality", "健康狀態")}
+                  text={profileIntroText("vitality", isChinese)}
                   delay={120}
                 />
               </div>
@@ -392,14 +375,14 @@ export default function ProfilePage() {
                 <StoryCard
                   icon={Activity}
                   title={t("Lifestyle", "生活型態")}
-                  text={activityStory(profile.activityLevel, isChinese)}
+                  text={profileIntroText("lifestyle", isChinese)}
                   delay={200}
                 />
 
                 <StoryCard
                   icon={ShieldCheck}
                   title={t("Strength", "體能")}
-                  text={fitnessStory(profile.fitnessLevel, isChinese)}
+                  text={profileIntroText("strength", isChinese)}
                   delay={280}
                 />
               </div>
@@ -417,7 +400,7 @@ export default function ProfilePage() {
               />
             </div>
 
-            <SectionTitle>{t("Life Era", "年齡階段")}</SectionTitle>
+            <SectionTitle>{t("Age", "年齡")}</SectionTitle>
 
             <SliderBlock
               title={t("Age Group", "年齡族群")}
@@ -428,7 +411,7 @@ export default function ProfilePage() {
               onChange={(value) => updateProfile({ ageLevel: value })}
             />
 
-            <SectionTitle>{t("Health Conditions", "健康狀況")}</SectionTitle>
+            <SectionTitle>{t("Vitality", "健康狀態")}</SectionTitle>
 
             <div className="condition-panel">
               <div className="condition-list">
@@ -457,7 +440,7 @@ export default function ProfilePage() {
               </div>
             </div>
 
-            <SectionTitle>{t("Movement Flow", "活動量")}</SectionTitle>
+            <SectionTitle>{t("Lifestyle", "生活型態")}</SectionTitle>
 
             <SliderBlock
               title={t("Activity Level", "活動程度")}
@@ -468,7 +451,7 @@ export default function ProfilePage() {
               onChange={(value) => updateProfile({ activityLevel: value })}
             />
 
-            <SectionTitle>{t("Body Strength", "體能強度")}</SectionTitle>
+            <SectionTitle>{t("Strength", "體能")}</SectionTitle>
 
             <SliderBlock
               title={t("Fitness Level", "體能等級")}
