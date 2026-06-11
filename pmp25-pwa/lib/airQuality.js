@@ -19,6 +19,8 @@ function fetchWithTimeout(url, ms = 15000) {
 }
 
 function roundedNumber(value, digits = 1) {
+  if (value === null || value === undefined || value === "") return null;
+
   const number = Number(value);
   return Number.isFinite(number) ? Number(number.toFixed(digits)) : null;
 }
