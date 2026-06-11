@@ -31,7 +31,6 @@ import {
   appendSimulationPoint,
   calculateDistanceKm,
   clearTodaySimulationRoute,
-  clearTodayRoute,
   getTodayRouteId,
   getTodayDistance,
   loadTodayPm25Samples,
@@ -50,7 +49,6 @@ import {
   routeDurationForMode,
 } from "@/lib/routePlanner";
 import {
-  deleteUserRoute,
   loadUserRouteHistory,
   saveUserRoute,
 } from "@/lib/firebaseData";
@@ -379,6 +377,7 @@ export default function HomePage() {
   }, [search, selectedRegion, isChinese]);
   const activePath = teleopMode ? simulationPath : todayPath;
   const activeDistance = teleopMode ? simulationDistance : distance;
+  const activeRouteMode = teleopMode ? routeMode : "walk";
 
   const syncCloudRoute = useCallback((route, summary = {}) => {
     if (!firebaseReady || !user?.uid) return;
@@ -393,11 +392,9 @@ export default function HomePage() {
   }, [location]);
 
   const collectPm25Sample = useCallback(async () => {
-    if (teleopMode) return null;
-
     const sampleLocation =
       gpsLocationRef.current ||
-      (gpsUnavailableRef.current ? locationRef.current || CITY_COORDS[currentCity] : null);
+      (!teleopMode && gpsUnavailableRef.current ? locationRef.current || CITY_COORDS[currentCity] : null);
     if (!sampleLocation) return null;
 
     const sampleCity = getNearestCity(
@@ -607,8 +604,6 @@ export default function HomePage() {
   }, [firebaseReady, todayRouteId, user?.uid]);
 
   useEffect(() => {
-    if (teleopMode) return undefined;
-
     let alive = true;
 
     async function sampleNow() {
@@ -658,13 +653,13 @@ export default function HomePage() {
 
           const start = routePoints[index - 1];
           const end = routePoints[index];
-          const key = routeCacheKey(start, end, routeMode);
+          const key = routeCacheKey(start, end, activeRouteMode);
 
           let segment = routeCacheRef.current.get(key);
 
           if (!segment) {
-            segment = await fetchRoute(start, end, routeMode);
-            if (!segment) segment = fallbackRouteSegment(start, end, routeMode);
+            segment = await fetchRoute(start, end, activeRouteMode);
+            if (!segment) segment = fallbackRouteSegment(start, end, activeRouteMode);
             routeCacheRef.current.set(key, segment);
           }
 
@@ -699,7 +694,7 @@ export default function HomePage() {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [activePath, routeMode]);
+  }, [activePath, activeRouteMode]);
 
   useEffect(() => {
     let alive = true;
@@ -771,13 +766,15 @@ export default function HomePage() {
           ? calculateRoadExposure(
               enrichedRoadPoints,
               roadRoute.segments,
-              routeMode,
+              activeRouteMode,
               baseStats
             )
           : baseStats;
         const stats = pm25Samples.length > 0
           ? {
               ...routedStats,
+              minutes: teleopMode ? routedStats.minutes : baseStats.minutes,
+              durationSource: teleopMode ? routedStats.durationSource : baseStats.durationSource,
               avgPm25: baseStats.avgPm25,
               exposureLoad: baseStats.exposureLoad,
               peak: baseStats.peak,
@@ -805,7 +802,7 @@ export default function HomePage() {
           pm25SampleCount: pm25Samples.length,
           cityPath: stats.cityPath,
           durationSource: stats.durationSource,
-          routeMode,
+          routeMode: teleopMode ? routeMode : "gps",
           routeSource: pm25Samples.length > 0 && enrichedRoute.length < 2
             ? "Time samples"
             : roadRoute?.source || "GPS samples",
@@ -814,7 +811,7 @@ export default function HomePage() {
             distance: roadRoute
               ? "road-route distance between GPS points"
               : "GPS point-to-point distance",
-            duration: roadRoute
+            duration: teleopMode && roadRoute
               ? `${transportName(routeMode, false)} route duration`
               : stats.durationSource,
             exposure: "time-based PM2.5 average from 10-minute city/location samples",
@@ -851,7 +848,7 @@ export default function HomePage() {
           sampleCount: stats.hits,
           pm25SampleCount: pm25Samples.length,
           cityPath: stats.cityPath,
-          mode: routeMode,
+          mode: teleopMode ? routeMode : "gps",
           routeSource: teleopMode
             ? roadRoute?.source || "Simulation"
             : routeSummary.routeSource,
@@ -871,9 +868,14 @@ export default function HomePage() {
       alive = false;
       clearTimeout(timer);
     };
-  }, [activePath, currentCity, pm25SampleCount, roadRoute, routeMode, syncCloudRoute, teleopMode]);
+  }, [activePath, activeRouteMode, currentCity, pm25SampleCount, roadRoute, routeMode, syncCloudRoute, teleopMode]);
 
   function handleCitySelect(city) {
+    if (!teleopMode) {
+      closeSearch();
+      return;
+    }
+
     const coords = CITY_COORDS[city];
     if (!coords) return;
 
@@ -912,6 +914,15 @@ export default function HomePage() {
 
     setTeleopMode(false);
     setTeleopPos(null);
+    closeSearch();
+
+    if (gpsLocationRef.current) {
+      const gpsLocation = gpsLocationRef.current;
+      setLocation(gpsLocation);
+      setCurrentCity(getNearestCity(gpsLocation.latitude, gpsLocation.longitude));
+      setRecenterTarget(gpsLocation);
+    }
+
     setRecenterSignal((value) => value + 1);
   }
 
@@ -973,17 +984,6 @@ export default function HomePage() {
       setRouteLoad(null);
       return;
     }
-
-    clearTodayRoute();
-    if (firebaseReady && user?.uid) {
-      deleteUserRoute(user.uid, todayRouteId).catch((error) => {
-        console.warn("Unable to delete cloud route:", error);
-      });
-    }
-
-    setTodayPath([]);
-    setDistance(0);
-    setRouteLoad(null);
   }
 
   function closeSearch() {
@@ -1012,6 +1012,9 @@ export default function HomePage() {
   const currentCityPm25Display = routeLoadLoading ? "-" : displayNumber(routeLoad?.currentCityPm25, 1);
   const currentCityExposureDisplay = routeLoadLoading ? "-" : displayNumber(routeLoad?.currentCityExposure, 1);
   const routeMinutesDisplay = routeLoadLoading ? "-" : displayInteger(routeLoad?.routeMinutes);
+  const routeModeDisplay = teleopMode
+    ? transportName(routeMode, isChinese)
+    : t("Live GPS", "即時 GPS");
   const collapsedPmLabel = teleopMode
     ? `${t("Route load", "路線負荷")} ${routePm25Display} µg/m³`
     : `PM2.5 ${currentCityPm25Display} µg/m³ · ${t("Route load", "路線負荷")} ${routePm25Display} µg/m³`;
@@ -1030,30 +1033,32 @@ export default function HomePage() {
           recenterTarget={recenterTarget}
         />
 
-        <div className="home-search-wrap">
-          <div className="map-search-compact">
-            <Search size={20} strokeWidth={3} className="home-search-icon" />
+        {teleopMode && (
+          <div className="home-search-wrap">
+            <div className="map-search-compact">
+              <Search size={20} strokeWidth={3} className="home-search-icon" />
 
-            <input
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setIsSearching(true);
-              }}
-              onFocus={() => setIsSearching(true)}
-              placeholder={t("Search city...", "搜尋城市...")}
-              className="home-search-input"
-            />
+              <input
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setIsSearching(true);
+                }}
+                onFocus={() => setIsSearching(true)}
+                placeholder={t("Search simulation city...", "搜尋模擬城市...")}
+                className="home-search-input"
+              />
 
-            {search.length > 0 && (
-              <button type="button" onClick={closeSearch} className="search-clear-button">
-                <X size={20} />
-              </button>
-            )}
+              {search.length > 0 && (
+                <button type="button" onClick={closeSearch} className="search-clear-button">
+                  <X size={20} />
+                </button>
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
-        {isSearching && (
+        {teleopMode && isSearching && (
           <button
             type="button"
             aria-label={t("Close search", "關閉搜尋")}
@@ -1062,7 +1067,7 @@ export default function HomePage() {
           />
         )}
 
-        {isSearching && (
+        {teleopMode && isSearching && (
           <div className="search-panel-compact">
             <div className="search-panel-header">
               <div className="region-filter-list">
@@ -1186,7 +1191,7 @@ export default function HomePage() {
                   {cityName(currentCity, isChinese)}
                 </p>
                 <p className="home-info-toggle-meta">
-                  {transportName(routeMode, isChinese)} · {Number(displayedDistance || 0).toFixed(2)} KM · {collapsedPmLabel}
+                  {routeModeDisplay} · {Number(displayedDistance || 0).toFixed(2)} KM · {collapsedPmLabel}
                 </p>
               </div>
               <span className="home-info-toggle-icon">
@@ -1223,25 +1228,29 @@ export default function HomePage() {
 
               <div className="home-bottom-divider" />
 
-              <div className="home-route-mode-row" aria-label={t("Route mode", "路線模式")}>
-                {HOME_ROUTE_MODES.map(({ id, Icon }) => (
-                  <button
-                    key={id}
-                    type="button"
-                    onClick={() => setRouteMode(id)}
-                    className={[
-                      "home-route-mode-button",
-                      routeMode === id ? "home-route-mode-button-active" : "",
-                    ].join(" ")}
-                    title={transportName(id, isChinese)}
-                  >
-                    <Icon size={15} strokeWidth={3} />
-                    <span>{transportName(id, isChinese)}</span>
-                  </button>
-                ))}
-              </div>
+              {teleopMode && (
+                <>
+                  <div className="home-route-mode-row" aria-label={t("Route mode", "路線模式")}>
+                    {HOME_ROUTE_MODES.map(({ id, Icon }) => (
+                      <button
+                        key={id}
+                        type="button"
+                        onClick={() => setRouteMode(id)}
+                        className={[
+                          "home-route-mode-button",
+                          routeMode === id ? "home-route-mode-button-active" : "",
+                        ].join(" ")}
+                        title={transportName(id, isChinese)}
+                      >
+                        <Icon size={15} strokeWidth={3} />
+                        <span>{transportName(id, isChinese)}</span>
+                      </button>
+                    ))}
+                  </div>
 
-              <div className="home-bottom-divider" />
+                  <div className="home-bottom-divider" />
+                </>
+              )}
 
               <div className="home-route-chain">
                 <div className="home-route-chain-head">
@@ -1321,28 +1330,30 @@ export default function HomePage() {
 
               <div className="home-bottom-footer">
                 <p className="home-bottom-note">
-                  {transportName(routeMode, isChinese)} · {routeSourceDisplay} · {routeMinutesDisplay} {t("min", "分鐘")} · {routeLoad?.sampleCount ?? activePath.length} {routeSampleLabel}
+                  {routeModeDisplay} · {routeSourceDisplay} · {routeMinutesDisplay} {t("min", "分鐘")} · {routeLoad?.sampleCount ?? activePath.length} {routeSampleLabel}
                 </p>
 
-                <button
-                  type="button"
-                  onClick={resetTodayRoute}
-                  title={t("Reset today's route", "重設今日路線")}
-                  className="home-bottom-reset"
-                >
-                  <RotateCcw size={11} strokeWidth={3} />
-                  {t("Reset", "重設")}
-                </button>
+                {teleopMode && (
+                  <button
+                    type="button"
+                    onClick={resetTodayRoute}
+                    title={t("Reset simulation route", "重設模擬路線")}
+                    className="home-bottom-reset"
+                  >
+                    <RotateCcw size={11} strokeWidth={3} />
+                    {t("Reset", "重設")}
+                  </button>
+                )}
 
               </div>
               </>
             )}
 
-            {!homeInfoOpen && (
+            {!homeInfoOpen && teleopMode && (
               <button
                 type="button"
                 onClick={resetTodayRoute}
-                title={t("Reset today's route", "重設今日路線")}
+                title={t("Reset simulation route", "重設模擬路線")}
                 className="home-bottom-reset"
               >
                 <RotateCcw size={11} strokeWidth={3} />
