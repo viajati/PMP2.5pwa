@@ -333,7 +333,6 @@ export default function SummaryPage() {
   const periodLabel = isChinese
     ? PERIOD_LABELS_ZH[periodKey]
     : activePeriod.label;
-  const periodDaysLabel = activePeriod.shortLabel;
   const historyLogLabel = isChinese
     ? HISTORY_LOG_LABELS_ZH[periodKey] || HISTORY_LOG_LABELS_ZH.weekly
     : HISTORY_LOG_LABELS_EN[periodKey] || HISTORY_LOG_LABELS_EN.weekly;
@@ -487,7 +486,7 @@ export default function SummaryPage() {
             <div className="summary-native-heading-title">
               <BarChart3 className="forecast-icon-accent" size={22} strokeWidth={3} />
               <h2 className="summary-native-section-title">
-                {historyLogLabel} ({periodDaysLabel})
+                {historyLogLabel}
               </h2>
             </div>
             <p className="summary-action-hint">{t("Tap to expand", "點擊展開")}</p>
