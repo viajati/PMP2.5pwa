@@ -344,6 +344,7 @@ export default function HomePage() {
     longitude: 121.0,
   });
   const locationRef = useRef(location);
+  const gpsLocationRef = useRef(null);
 
   const [search, setSearch] = useState("");
   const [selectedRegion, setSelectedRegion] = useState("ALL");
@@ -391,18 +392,30 @@ export default function HomePage() {
   }, [location]);
 
   const collectPm25Sample = useCallback(async () => {
-    if (teleopMode || !CITY_COORDS[currentCity]) return null;
+    if (teleopMode) return null;
 
-    const airSample = await fetchCurrentCityAirSample(currentCity);
+    const sampleLocation =
+      gpsLocationRef.current ||
+      locationRef.current ||
+      CITY_COORDS[currentCity];
+    if (!sampleLocation) return null;
+
+    const sampleCity = getNearestCity(
+      sampleLocation.latitude,
+      sampleLocation.longitude
+    );
+    const cityForSample = CITY_COORDS[sampleCity] ? sampleCity : currentCity;
+    if (!CITY_COORDS[cityForSample]) return null;
+
+    const airSample = await fetchCurrentCityAirSample(cityForSample);
     if (!airSample) return null;
-
-    const sampleLocation = locationRef.current || CITY_COORDS[currentCity];
 
     return appendPm25Sample({
       ...airSample,
-      city: currentCity,
+      city: cityForSample,
       latitude: sampleLocation.latitude,
       longitude: sampleLocation.longitude,
+      accuracy: sampleLocation.accuracy ?? null,
       routeKind: "gps",
     }, todayRouteId);
   }, [currentCity, teleopMode, todayRouteId]);
@@ -450,7 +463,9 @@ export default function HomePage() {
         const nextLocation = {
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
+          accuracy: position.coords.accuracy ?? null,
         };
+        gpsLocationRef.current = nextLocation;
 
         setLocation(nextLocation);
         const nearestCity = getNearestCity(
@@ -489,7 +504,9 @@ export default function HomePage() {
         const nextLocation = {
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
+          accuracy: position.coords.accuracy ?? null,
         };
+        gpsLocationRef.current = nextLocation;
 
         const nearestCity = getNearestCity(
           nextLocation.latitude,
@@ -911,7 +928,9 @@ export default function HomePage() {
         const nextLocation = {
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
+          accuracy: position.coords.accuracy ?? null,
         };
+        gpsLocationRef.current = nextLocation;
 
         setLocation(nextLocation);
         setCurrentCity(
