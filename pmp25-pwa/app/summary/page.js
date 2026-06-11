@@ -50,6 +50,10 @@ const HISTORY_LOG_LABELS_ZH = {
   yearly: "每年歷史紀錄",
 };
 
+function safeRisk(day) {
+  return day?.risk || exposureRisk(day?.exposureLoad || 0);
+}
+
 function dateFromRouteId(id) {
   const [year, month, day] = String(id || "").split("_").map(Number);
   if (!year || !month || !day) return null;
@@ -434,6 +438,7 @@ export default function SummaryPage() {
 
           <div className="summary-native-list">
             {displayedEntries.map((day) => {
+              const risk = safeRisk(day);
               const expanded = expandedDay === day.id;
               const maxInterval = Math.max(
                 1,
@@ -482,7 +487,7 @@ export default function SummaryPage() {
                       className="summary-progress-fill"
                       style={{
                         width: `${Math.min(100, (day.exposureLoad / maxExposure) * 100)}%`,
-                        backgroundColor: "#00D2FF",
+                        backgroundColor: risk.color,
                       }}
                     />
                   </div>
@@ -500,7 +505,7 @@ export default function SummaryPage() {
                                     className="summary-native-bar-fill"
                                     style={{
                                       height: `${Math.max(5, Math.min(100, ((interval.exposureLoad || 0) / maxInterval) * 100))}%`,
-                                      backgroundColor: "#00D2FF",
+                                      backgroundColor: exposureRisk(interval.exposureLoad || 0).color,
                                     }}
                                   />
                                 </div>

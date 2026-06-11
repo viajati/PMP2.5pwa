@@ -366,6 +366,23 @@ export function buildRouteStats(route = [], storedSummary = null) {
   if (points.length === 0 && hasPm25Samples) {
     const sampleBins = emptyIntervals();
     const values = pm25Samples.map(pointPm25).filter((value) => value !== null);
+    const sampleRoute = pm25Samples.filter((sample) => (
+      Number.isFinite(Number(sample?.latitude)) &&
+      Number.isFinite(Number(sample?.longitude))
+    ));
+    let sampleDistance = 0;
+    let sampleMinutes = 0;
+
+    for (let index = 1; index < sampleRoute.length; index += 1) {
+      const prev = sampleRoute[index - 1];
+      const curr = sampleRoute[index];
+      const km = calculateDistanceKm(prev, curr);
+      const duration = segmentMinutes(prev, curr, km);
+
+      sampleDistance += km;
+      sampleMinutes += duration.minutes;
+    }
+
     values.forEach((_, index) => addIntervalSample(sampleBins, pm25Samples[index]));
     const avgPm25 = values.reduce((sum, value) => sum + value, 0) / values.length;
     const peak = Math.max(...values);
@@ -376,21 +393,21 @@ export function buildRouteStats(route = [], storedSummary = null) {
     return {
       km: Number.isFinite(summaryDistance) && summaryDistance > 0
         ? Number(summaryDistance.toFixed(2))
-        : 0,
+        : Number(sampleDistance.toFixed(2)),
       avgPm25: Number(avgPm25.toFixed(1)),
       peak: Number(peak.toFixed(1)),
       low: Number(low.toFixed(1)),
       minutes: Number.isFinite(summaryMinutes) && summaryMinutes > 0
         ? Math.round(summaryMinutes)
-        : 0,
+        : Math.round(sampleMinutes),
       exposureLoad: Number(avgPm25.toFixed(1)),
-      segments: 0,
+      segments: Math.max(0, sampleRoute.length - 1),
       hits: pm25Samples.length,
       intervals: finalizeIntervals(sampleBins),
       cityPath: sampleCityPathFor(pm25Samples),
-      durationSource: "time-samples",
+      durationSource: sampleRoute.length > 1 ? "sample-coordinates" : "time-samples",
       routeMode: storedSummary?.routeMode || "",
-      routeSource: storedSummary?.routeSource || "Time samples",
+      routeSource: storedSummary?.routeSource || (sampleRoute.length > 1 ? "Recovered GPS samples" : "Time samples"),
       sampleCount: pm25Samples.length,
       pm25SampleCount: pm25Samples.length,
       isFallback: false,
