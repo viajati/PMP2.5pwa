@@ -195,6 +195,15 @@ function mergeRouteSummaries(localSummary, cloudSummary, pm25Samples) {
   };
 }
 
+function distanceFromSummary(summary) {
+  const value = Number(summary?.distanceKm);
+  return Number.isFinite(value) && value > 0 ? value : 0;
+}
+
+function resolvedLiveDistance(route = [], summary = null) {
+  return Math.max(getTodayDistance(route), distanceFromSummary(summary));
+}
+
 function cityPathFromPoints(route = []) {
   return route.reduce((path, point) => {
     if (!Number.isFinite(point?.latitude) || !Number.isFinite(point?.longitude)) {
@@ -442,9 +451,10 @@ export default function HomePage() {
       if (cancelled) return;
 
       const savedRoute = loadTodayRoute();
+      const savedSummary = loadTodayRouteSummary();
       clearTodaySimulationRoute();
       setTodayPath(savedRoute);
-      setDistance(getTodayDistance(savedRoute));
+      setDistance(resolvedLiveDistance(savedRoute, savedSummary));
       setSimulationPath([]);
       setSimulationDistance(0);
     });
@@ -587,7 +597,6 @@ export default function HomePage() {
         if (mergedRoute.length > localRoute.length) {
           saveTodayRoute(mergedRoute);
           setTodayPath(mergedRoute);
-          setDistance(getTodayDistance(mergedRoute));
         }
 
         if (mergedSamples.length > localSamples.length) {
@@ -597,6 +606,9 @@ export default function HomePage() {
 
         if (mergedSummary) {
           saveTodayRouteSummary(mergedSummary);
+          setDistance(resolvedLiveDistance(mergedRoute, mergedSummary));
+        } else if (mergedRoute.length > 0) {
+          setDistance(getTodayDistance(mergedRoute));
         }
       } catch (error) {
         console.warn("Unable to restore cloud route history:", error);
@@ -1084,7 +1096,7 @@ export default function HomePage() {
       : currentCity;
   const displayedDistance = teleopMode
     ? routeLoad?.routeDistanceKm ?? activeDistance
-    : activeDistance;
+    : Math.max(activeDistance, Number(routeLoad?.routeDistanceKm) || 0);
   const routeSourceLabel = roadRoutingLoading
     ? "routing road path"
     : teleopMode

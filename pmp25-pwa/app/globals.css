@@ -2296,7 +2296,7 @@ button:disabled {
 
 .forecast-week-value {
   margin-top: 8px;
-  color: var(--text-main);
+  color: var(--value-color, var(--text-main));
   font-size: 15px;
   font-weight: 950;
 }
@@ -5096,7 +5096,7 @@ html[data-theme="light"] .forecast-native-chart-grid {
 
 .forecast-native-chart-dot {
   fill: #333;
-  stroke: var(--app-cyan);
+  stroke: var(--dot-color, var(--app-cyan));
   stroke-width: 2;
 }
 

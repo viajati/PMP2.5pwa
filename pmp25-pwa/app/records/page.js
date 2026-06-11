@@ -84,6 +84,38 @@ function pmColor(value) {
   return "#FF3B30";
 }
 
+function pmColorSoft(value) {
+  const color = pmColor(value);
+
+  if (color === "#34C759") return "rgba(52, 199, 89, 0.16)";
+  if (color === "#FFCC00") return "rgba(255, 204, 0, 0.18)";
+  if (color === "#FF9500") return "rgba(255, 149, 0, 0.18)";
+  if (color === "#FF3B30") return "rgba(255, 59, 48, 0.18)";
+  return "rgba(142, 142, 147, 0.16)";
+}
+
+function pmRiskMeta(value, t) {
+  const number = numericValue(value);
+
+  if (number === null) {
+    return { label: "-", color: "#8E8E93", bg: pmColorSoft(null) };
+  }
+
+  if (number <= 15.4) {
+    return { label: t("LOW", "低"), color: "#34C759", bg: pmColorSoft(number) };
+  }
+
+  if (number <= 35.4) {
+    return { label: t("MODERATE", "普通"), color: "#FFCC00", bg: pmColorSoft(number) };
+  }
+
+  if (number <= 54.4) {
+    return { label: t("HIGH", "高"), color: "#FF9500", bg: pmColorSoft(number) };
+  }
+
+  return { label: t("VERY HIGH", "非常高"), color: "#FF3B30", bg: pmColorSoft(number) };
+}
+
 function caqiFrom(pm25, pm10, co) {
   const pm25Score = Math.min(100, (numericOrZero(pm25) / 75) * 100);
   const pm10Score = Math.min(100, (numericOrZero(pm10) / 150) * 100);
@@ -514,10 +546,9 @@ export default function RecordsPage() {
   const potentialScore = potentialBasis === null
     ? null
     : Math.max(1, Math.min(100, 100 - (potentialBasis * 1.1)));
-  const forecastTrendValues = [
-    selectedPm25,
-    ...dailyPrediction.slice(0, 6).map((day) => numericValue(day.pm25)),
-  ];
+  const actualRisk = pmRiskMeta(selectedPm25, t);
+  const potentialRisk = pmRiskMeta(potentialBasis, t);
+  const forecastTrendValues = dailyPrediction.map((day) => numericValue(day.pm25));
   const forecastChartValues = forecastTrendValues.filter((value) => value !== null);
   const hasForecastTrendData = forecastChartValues.length > 0;
   const forecastChartMin = hasForecastTrendData ? Math.min(...forecastChartValues) : 0;
@@ -1080,8 +1111,14 @@ export default function RecordsPage() {
                   </div>
 
                   <div className="forecast-native-hero-copy">
-                    <span className="forecast-native-status-pill">
-                      {!hasSelectedAirData ? t("LOADING", "載入中") : caqi < 35 ? t("HEALTHY", "健康") : t("MODERATE", "普通")}
+                    <span
+                      className="forecast-native-status-pill"
+                      style={{
+                        backgroundColor: hasSelectedAirData ? actualRisk.bg : pmColorSoft(null),
+                        color: hasSelectedAirData ? actualRisk.color : "#8E8E93",
+                      }}
+                    >
+                      {!hasSelectedAirData ? t("LOADING", "載入中") : actualRisk.label}
                     </span>
                   </div>
                 </div>
@@ -1095,15 +1132,15 @@ export default function RecordsPage() {
                   <RingGauge
                     value={actualScore}
                     label={t("Actual (Now)", "目前實測")}
-                    subLabel={actualScore === null ? "-" : actualScore > 60 ? t("Good", "良好") : t("Poor", "不佳")}
-                    color={actualScore === null ? "#8E8E93" : actualScore > 60 ? "#FFCC00" : "#FF3B30"}
+                    subLabel={actualRisk.label}
+                    color={actualRisk.color}
                   />
                   <span className="forecast-native-gauge-arrow">→</span>
                   <RingGauge
                     value={potentialScore}
                     label={t("Predicted (Tom.)", "明日預測")}
-                    subLabel={potentialScore === null ? "-" : potentialScore > 60 ? t("Good", "良好") : t("Poor", "不佳")}
-                    color={potentialScore === null ? "#8E8E93" : potentialScore > 60 ? "#FF9500" : "#FF3B30"}
+                    subLabel={potentialRisk.label}
+                    color={potentialRisk.color}
                   />
                 </div>
               </div>
@@ -1117,10 +1154,13 @@ export default function RecordsPage() {
                     <p className="forecast-metric-sub">{t("Fine particles", "細懸浮微粒")}</p>
 
                     <div className="forecast-metric-row">
-                      <p className="forecast-metric-value forecast-metric-good">
+                      <p
+                        className="forecast-metric-value"
+                        style={{ "--value-color": pmColor(selectedPm25) }}
+                      >
                         {displayInteger(selectedPm25)}
                       </p>
-                      <Sun size={18} className="forecast-icon-good" />
+                      <Sun size={18} style={{ color: pmColor(selectedPm25) }} />
                     </div>
                   </div>
 
@@ -1193,8 +1233,13 @@ export default function RecordsPage() {
                     {dailyPrediction.map((day) => (
                       <div key={day.date}>
                         <p className="forecast-week-day">{forecastDayLabel(day)}</p>
-                        <Cloud size={20} className="forecast-icon-accent" />
-                        <p className="forecast-week-value">{displayInteger(day.pm25)}</p>
+                        <Cloud size={20} style={{ color: pmColor(day.pm25) }} />
+                        <p
+                          className="forecast-week-value"
+                          style={{ "--value-color": pmColor(day.pm25) }}
+                        >
+                          {displayInteger(day.pm25)}
+                        </p>
                       </div>
                     ))}
                   </div>
@@ -1231,6 +1276,7 @@ export default function RecordsPage() {
                               cy={point.y}
                               r={index === forecastTrendValues.length - 1 ? 5 : 4}
                               className="forecast-native-chart-dot"
+                              style={{ "--dot-color": pmColor(value) }}
                             />
                           );
                         })}

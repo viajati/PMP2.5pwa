@@ -324,6 +324,23 @@ function finalizeIntervals(bins) {
   });
 }
 
+function routeDistanceAndMinutes(route = []) {
+  let km = 0;
+  let minutes = 0;
+
+  for (let index = 1; index < route.length; index += 1) {
+    const prev = route[index - 1];
+    const curr = route[index];
+    const segmentKm = calculateDistanceKm(prev, curr);
+    const duration = segmentMinutes(prev, curr, segmentKm);
+
+    km += segmentKm;
+    minutes += duration.minutes;
+  }
+
+  return { km, minutes };
+}
+
 function cityPathFor(route) {
   return route.reduce((path, point) => {
     const city = pointCity(point);
@@ -393,17 +410,21 @@ export function buildRouteStats(route = [], storedSummary = null) {
     const low = Math.min(...values);
     const summaryDistance = Number(storedSummary?.distanceKm);
     const summaryMinutes = Number(storedSummary?.routeMinutes);
+    const bestDistance = Math.max(
+      Number.isFinite(summaryDistance) ? summaryDistance : 0,
+      sampleDistance
+    );
+    const bestMinutes = Math.max(
+      Number.isFinite(summaryMinutes) ? summaryMinutes : 0,
+      sampleMinutes
+    );
 
     return {
-      km: Number.isFinite(summaryDistance) && summaryDistance > 0
-        ? Number(summaryDistance.toFixed(2))
-        : Number(sampleDistance.toFixed(2)),
+      km: Number(bestDistance.toFixed(2)),
       avgPm25: Number(avgPm25.toFixed(1)),
       peak: Number(peak.toFixed(1)),
       low: Number(low.toFixed(1)),
-      minutes: Number.isFinite(summaryMinutes) && summaryMinutes > 0
-        ? Math.round(summaryMinutes)
-        : Math.round(sampleMinutes),
+      minutes: Math.round(bestMinutes),
       exposureLoad: Number(avgPm25.toFixed(1)),
       segments: Math.max(0, sampleRoute.length - 1),
       hits: pm25Samples.length,
@@ -481,6 +502,21 @@ export function buildRouteStats(route = [], storedSummary = null) {
     sampleIntervals = finalizeIntervals(sampleBins);
   }
 
+  const sampleRoute = pm25Samples.filter((sample) => (
+    Number.isFinite(Number(sample?.latitude)) &&
+    Number.isFinite(Number(sample?.longitude))
+  ));
+  const sampleRouteStats = routeDistanceAndMinutes(sampleRoute);
+  const bestDistance = Math.max(
+    Number.isFinite(summaryDistance) ? summaryDistance : 0,
+    km,
+    sampleRouteStats.km
+  );
+  const bestMinutes = Math.max(
+    Number.isFinite(summaryMinutes) ? summaryMinutes : 0,
+    minutes,
+    sampleRouteStats.minutes
+  );
   const displayedAvgPm25 = hasPm25Samples
     ? Number(sampleAvgPm25.toFixed(1))
     : !measuredPm25 && storedAvgPm25 > 0
@@ -500,13 +536,9 @@ export function buildRouteStats(route = [], storedSummary = null) {
       : Number.isFinite(summaryLow) && summaryLow > 0
       ? summaryLow
       : Number((low === Number.POSITIVE_INFINITY ? fallbackAvg || 0 : low).toFixed(1)),
-    minutes: Number.isFinite(summaryMinutes) && summaryMinutes > 0
-      ? Math.round(summaryMinutes)
-      : Math.round(minutes),
+    minutes: Math.round(bestMinutes),
     exposureLoad: displayedAvgPm25,
-    km: Number.isFinite(summaryDistance) && summaryDistance > 0
-      ? Number(summaryDistance.toFixed(2))
-      : Number(km.toFixed(2)),
+    km: Number(bestDistance.toFixed(2)),
     segments: Math.max(0, points.length - 1),
     hits: hasPm25Samples ? pm25Samples.length : points.length,
     intervals: sampleIntervals || finalizeIntervals(bins),
