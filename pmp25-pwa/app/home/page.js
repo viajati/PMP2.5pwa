@@ -45,6 +45,7 @@ import {
 import { fetchHourlyAirQuality } from "@/lib/airQuality";
 import { buildRouteStats } from "@/lib/summaryStats";
 import {
+  estimateRoutePmLoad,
   fetchRoute,
   routeDurationForMode,
 } from "@/lib/routePlanner";
@@ -789,6 +790,13 @@ export default function HomePage() {
         const hasPmData = pm25Samples.length > 0
           || currentCityPm25 !== null
           || enrichedRoute.some((point) => pointPm25(point) !== null);
+        const routeLoadScore = hasPmData
+          ? estimateRoutePmLoad(stats.avgPm25, {
+              distanceKm: stats.km,
+              durationMin: stats.minutes,
+              mode: teleopMode ? routeMode : "gps",
+            })
+          : null;
         const routeSummary = {
           distanceKm: stats.km,
           routeMinutes: stats.minutes,
@@ -796,6 +804,7 @@ export default function HomePage() {
           avgPm25: hasPmData ? stats.avgPm25 : null,
           peakPm25: hasPmData ? stats.peak : null,
           lowPm25: hasPmData ? stats.low : null,
+          routeLoadScore,
           segmentCount: stats.segments,
           samples: stats.hits,
           pm25Samples,
@@ -815,6 +824,7 @@ export default function HomePage() {
               ? `${transportName(routeMode, false)} route duration`
               : stats.durationSource,
             exposure: "time-based PM2.5 average from 10-minute city/location samples",
+            routeLoad: "avg PM2.5 × time, distance, and transport exposure factor",
           },
           updatedAt: Date.now(),
         };
@@ -843,6 +853,7 @@ export default function HomePage() {
           avgPm25: hasPmData ? stats.avgPm25 : null,
           routeMinutes: stats.minutes,
           exposureLoad: hasPmData ? stats.exposureLoad : null,
+          routeLoadScore,
           routeDistanceKm: stats.km,
           segmentCount: stats.segments,
           sampleCount: stats.hits,
@@ -1009,6 +1020,7 @@ export default function HomePage() {
       ? t("moves", "次移動")
       : t("GPS points", "GPS 點");
   const routePm25Display = routeLoadLoading ? "-" : displayNumber(routeLoad?.exposureLoad, 1);
+  const routeLoadScoreDisplay = routeLoadLoading ? "-" : displayNumber(routeLoad?.routeLoadScore, 1);
   const currentCityPm25Display = routeLoadLoading ? "-" : displayNumber(routeLoad?.currentCityPm25, 1);
   const currentCityExposureDisplay = routeLoadLoading ? "-" : displayNumber(routeLoad?.currentCityExposure, 1);
   const routeMinutesDisplay = routeLoadLoading ? "-" : displayInteger(routeLoad?.routeMinutes);
@@ -1016,8 +1028,8 @@ export default function HomePage() {
     ? transportName(routeMode, isChinese)
     : t("Live GPS", "即時 GPS");
   const collapsedPmLabel = teleopMode
-    ? `${t("Route load", "路線負荷")} ${routePm25Display} µg/m³`
-    : `PM2.5 ${currentCityPm25Display} µg/m³ · ${t("Route load", "路線負荷")} ${routePm25Display} µg/m³`;
+    ? `${t("Route load", "路線負荷")} ${routeLoadScoreDisplay} ${t("score", "分")}`
+    : `PM2.5 ${currentCityPm25Display} µg/m³ · ${t("Route load", "路線負荷")} ${routeLoadScoreDisplay} ${t("score", "分")}`;
 
   return (
     <main className="app-root home-root">
@@ -1322,8 +1334,8 @@ export default function HomePage() {
                 <div className="home-bottom-cell">
                   <p className="home-bottom-label">{t("Route Load", "路線負荷")}</p>
                   <p className="home-bottom-value-strong">
-                    {routePm25Display}
-                    <span className="home-bottom-unit">µg/m³</span>
+                    {routeLoadScoreDisplay}
+                    <span className="home-bottom-unit">{t("score", "分")}</span>
                   </p>
                 </div>
               </div>
@@ -1331,6 +1343,12 @@ export default function HomePage() {
               <div className="home-bottom-footer">
                 <p className="home-bottom-note">
                   {routeModeDisplay} · {routeSourceDisplay} · {routeMinutesDisplay} {t("min", "分鐘")} · {routeLoad?.sampleCount ?? activePath.length} {routeSampleLabel}
+                </p>
+                <p className="home-bottom-note home-bottom-note-formula">
+                  {t(
+                    "Route load = avg PM2.5 × time, distance, and transport exposure factor.",
+                    "路線負荷 = 平均 PM2.5 × 時間、距離與交通暴露係數。"
+                  )}
                 </p>
 
                 {teleopMode && (

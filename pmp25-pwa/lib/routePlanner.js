@@ -47,7 +47,27 @@ export function routeDurationForMode(mode = "car", distanceKm = 0, drivingMinute
   return (distanceKm / speed) * 60;
 }
 
-export function estimateRoutePmLoad(pm25) {
+const ROUTE_LOAD_FACTORS = {
+  car: { time: 0.35, distance: 0.03 },
+  bike: { time: 1.25, distance: 0.08 },
+  walk: { time: 1.0, distance: 0.12 },
+  gps: { time: 0.9, distance: 0.1 },
+};
+
+export function routeLoadFactors(mode = "car") {
+  return ROUTE_LOAD_FACTORS[mode] || ROUTE_LOAD_FACTORS.car;
+}
+
+export function estimateRoutePmLoad(pm25, options = {}) {
   const value = Number(pm25);
-  return Number.isFinite(value) ? Number(value.toFixed(1)) : null;
+  if (!Number.isFinite(value)) return null;
+
+  const distanceKm = Math.max(0, Number(options.distanceKm) || 0);
+  const durationMin = Math.max(0, Number(options.durationMin) || 0);
+  const factors = routeLoadFactors(options.mode);
+  const exposureWeight =
+    (durationMin / 60) * factors.time +
+    (distanceKm / 10) * factors.distance;
+
+  return Number((value * exposureWeight).toFixed(1));
 }

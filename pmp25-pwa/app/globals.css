@@ -1084,6 +1084,12 @@ button:disabled {
   min-width: 0;
 }
 
+.home-bottom-note-formula {
+  flex-basis: 100%;
+  color: var(--text-soft);
+  font-size: 8.5px;
+}
+
 .home-bottom-reset,
 .home-bottom-icon-button {
   display: inline-flex;
@@ -2004,6 +2010,16 @@ button:disabled {
   padding-inline: 22px;
 }
 
+.records-route-status {
+  flex: 1;
+  color: var(--text-soft);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-align: right;
+  text-transform: uppercase;
+}
+
 .records-route-card {
   padding: 18px;
 }
@@ -2029,6 +2045,17 @@ button:disabled {
 
 .records-route-card .records-metric-span {
   min-height: 94px;
+}
+
+.records-route-formula {
+  margin-top: 12px;
+  border-radius: 16px;
+  background: var(--app-surface-soft);
+  padding: 11px 13px;
+  color: var(--text-soft);
+  font-size: 10px;
+  font-weight: 750;
+  line-height: 1.35;
 }
 
 .records-route-card .app-notice-icon {
@@ -4670,6 +4697,10 @@ html[data-theme="light"] .records-native-content .records2-transport {
 
 .records-native-content .records2-transport-active {
   background: var(--app-cyan);
+}
+
+.records-native-content .records-route-status {
+  font-size: 9px;
 }
 
 .records-native-content .records-primary-button {

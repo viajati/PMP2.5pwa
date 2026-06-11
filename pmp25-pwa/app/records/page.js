@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import {
   Bike,
@@ -548,7 +548,13 @@ export default function RecordsPage() {
   const avgRoutePm25 = selectedPm25 !== null && destinationPm25 !== null
     ? Number(((selectedPm25 + destinationPm25) / 2).toFixed(1))
     : null;
-  const routeLoad = avgRoutePm25 === null ? null : estimateRoutePmLoad(avgRoutePm25);
+  const routeLoad = avgRoutePm25 === null
+    ? null
+    : estimateRoutePmLoad(avgRoutePm25, {
+        distanceKm: routeKm,
+        durationMin: routeMinutes,
+        mode: transport,
+      });
   const displayedDistance = routeData?.distance ?? routeKm;
   const displayedDuration = routeData?.duration ?? routeMinutes;
   const displayedLoad = routeData?.load ?? routeLoad;
@@ -590,7 +596,7 @@ export default function RecordsPage() {
         ? t("Trend: waiting for PM2.5 forecast data.", "趨勢：等待 PM2.5 預測資料。")
         : `${t("Trend", "趨勢")}：${drift > 0 ? t("PM2.5 may increase tomorrow.", "明天 PM2.5 可能上升。") : t("Stable or lower PM2.5 expected tomorrow.", "明天 PM2.5 預期持平或下降。")}`
       : routeData
-        ? `${cityName(startCity, isChinese)} → ${cityName(endCity, isChinese)} · ${displayedDistance.toFixed(1)} KM · ${Math.round(displayedDuration)} ${t("min", "分鐘")} · ${displayNumber(displayedLoad, 1)} µg/m³`
+        ? `${cityName(startCity, isChinese)} → ${cityName(endCity, isChinese)} · ${displayedDistance.toFixed(1)} KM · ${Math.round(displayedDuration)} ${t("min", "分鐘")} · ${displayNumber(displayedLoad, 1)} ${t("load", "負荷")}`
       : t("Pick origin, destination, and transport to optimize exposure along the route.", "選擇起點、目的地與交通方式來優化路線暴露。");
   const adviceSourceLabel = healthAdvice.source === "ai"
     ? t("Gemini profile advice", "Gemini 個人化建議")
@@ -607,7 +613,7 @@ export default function RecordsPage() {
     return WEEKDAY_ZH[date.getDay()] || day.day;
   }
 
-  async function calculateRoute() {
+  const calculateRoute = useCallback(async () => {
     if (startCity === endCity) {
       setRouteData(null);
       return;
@@ -625,7 +631,13 @@ export default function RecordsPage() {
       const fallbackDuration = routeMinutes;
       const distance = route?.distance ?? fallbackDistance;
       const duration = route?.duration ?? fallbackDuration;
-      const load = avgRoutePm25 === null ? null : estimateRoutePmLoad(avgRoutePm25);
+      const load = avgRoutePm25 === null
+        ? null
+        : estimateRoutePmLoad(avgRoutePm25, {
+            distanceKm: distance,
+            durationMin: duration,
+            mode: transport,
+          });
 
       setRouteData({
         coords: route?.coords || [],
@@ -641,7 +653,17 @@ export default function RecordsPage() {
     } finally {
       setRouteLoading(false);
     }
-  }
+  }, [avgRoutePm25, endCity, routeKm, routeMinutes, startCity, transport]);
+
+  useEffect(() => {
+    if (mode !== "PLANNER") return undefined;
+
+    const timer = window.setTimeout(() => {
+      calculateRoute();
+    }, 220);
+
+    return () => window.clearTimeout(timer);
+  }, [calculateRoute, mode]);
 
   return (
     <main className="app-root">
@@ -937,13 +959,11 @@ export default function RecordsPage() {
                   })}
                 </div>
 
-                <button
-                  onClick={calculateRoute}
-                  disabled={routeLoading}
-                  className="records-primary-button"
-                >
-                  {routeLoading ? t("OPTIMIZING", "規劃中") : t("OPTIMIZE", "最佳化")}
-                </button>
+                <p className="records-route-status">
+                  {routeLoading
+                    ? t("Optimizing route...", "路線規劃中...")
+                    : t("Route updates automatically", "路線會自動更新")}
+                </p>
               </div>
 
               <div className="records2-card records-route-card">
@@ -983,10 +1003,17 @@ export default function RecordsPage() {
                       style={{ "--value-color": pmColor(avgRoutePm25) }}
                     >
                       {displayNumber(displayedLoad, 1)}
-                      <span className="records2-unit">µg/m³</span>
+                      <span className="records2-unit">{t("score", "分")}</span>
                     </p>
                   </div>
                 </div>
+
+                <p className="records-route-formula">
+                  {t(
+                    "Route load = avg PM2.5 × time, distance, and transport exposure factor.",
+                    "路線負荷 = 平均 PM2.5 × 時間、距離與交通暴露係數。"
+                  )}
+                </p>
               </div>
 
               <div className="records2-map-preview">
