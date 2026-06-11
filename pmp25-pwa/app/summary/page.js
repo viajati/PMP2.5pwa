@@ -85,6 +85,26 @@ function periodGroupTitle(date, groupType, chinese = false) {
   });
 }
 
+function weekOfMonth(date) {
+  return Math.floor((date.getDate() - 1) / 7) + 1;
+}
+
+function aggregateLabelForDate(date, groupType, chinese = false) {
+  if (groupType === "yearly") {
+    return date.toLocaleDateString(chinese ? "zh-TW" : "en-US", {
+      month: "short",
+    });
+  }
+
+  const week = weekOfMonth(date);
+  return chinese ? `第${week}週` : `W${week}`;
+}
+
+function aggregateKeyForDate(date, groupType) {
+  if (groupType === "yearly") return String(date.getMonth() + 1).padStart(2, "0");
+  return String(weekOfMonth(date)).padStart(2, "0");
+}
+
 function buildSummaryGroups(days = [], groupType = "monthly", chinese = false) {
   const groups = new Map();
 
@@ -116,6 +136,7 @@ function buildSummaryGroups(days = [], groupType = "monthly", chinese = false) {
         hits: 0,
         activeDays: 0,
         intervals: [],
+        aggregateIntervals: [],
         cityPath: [],
         isPersonal: false,
         durationSource: "aggregate",
@@ -147,6 +168,32 @@ function buildSummaryGroups(days = [], groupType = "monthly", chinese = false) {
 
     if (Number(day.peak) > 0) group.peak = Math.max(group.peak, Number(day.peak));
     if (Number(day.low) > 0) group.low = Math.min(group.low, Number(day.low));
+
+    const aggregateKey = aggregateKeyForDate(date, groupType);
+    let aggregateInterval = group.aggregateIntervals.find((item) => item.key === aggregateKey);
+    if (!aggregateInterval) {
+      aggregateInterval = {
+        key: aggregateKey,
+        label: aggregateLabelForDate(date, groupType, chinese),
+        km: 0,
+        minutes: 0,
+        hits: 0,
+        exposureLoadSum: 0,
+        exposureLoadCount: 0,
+        exposureLoad: 0,
+        avgPm25: 0,
+      };
+      group.aggregateIntervals.push(aggregateInterval);
+    }
+
+    aggregateInterval.km += Number(day.km) || 0;
+    aggregateInterval.minutes += Number(day.minutes) || 0;
+    aggregateInterval.hits += day.isPersonal ? 1 : 0;
+
+    if (Number(day.exposureLoad) > 0) {
+      aggregateInterval.exposureLoadSum += Number(day.exposureLoad);
+      aggregateInterval.exposureLoadCount += 1;
+    }
 
     (day.cityPath || []).forEach((city) => {
       if (city && group.cityPath[group.cityPath.length - 1] !== city) {
@@ -201,6 +248,21 @@ function buildSummaryGroups(days = [], groupType = "monthly", chinese = false) {
         exposureLoad: Number(intervalExposure.toFixed(1)),
       };
     });
+    const finalizedAggregateIntervals = group.aggregateIntervals
+      .sort((a, b) => String(a.key).localeCompare(String(b.key)))
+      .map((interval) => {
+        const intervalExposure = interval.exposureLoadCount > 0
+          ? interval.exposureLoadSum / interval.exposureLoadCount
+          : 0;
+
+        return {
+          ...interval,
+          km: Number(interval.km.toFixed(2)),
+          minutes: Math.round(interval.minutes),
+          avgPm25: Number(intervalExposure.toFixed(1)),
+          exposureLoad: Number(intervalExposure.toFixed(1)),
+        };
+      });
 
     return {
       ...group,
@@ -211,7 +273,9 @@ function buildSummaryGroups(days = [], groupType = "monthly", chinese = false) {
       exposureLoad: Number(exposureLoad.toFixed(1)),
       peak: Number(group.peak.toFixed(1)),
       low: group.low === Number.POSITIVE_INFINITY ? 0 : Number(group.low.toFixed(1)),
-      intervals: finalizedIntervals,
+      intervals: finalizedAggregateIntervals.length > 0
+        ? finalizedAggregateIntervals
+        : finalizedIntervals,
       risk: exposureRisk(exposureLoad),
       source: group.isPersonal ? "samples" : "no data",
     };
@@ -433,6 +497,11 @@ export default function SummaryPage() {
             {displayedEntries.map((day) => {
               const risk = safeRisk(day);
               const expanded = expandedDay === day.id;
+              const breakdownTitle = day.groupType === "yearly"
+                ? t("MONTHLY AVG BREAKDOWN", "每月平均分析")
+                : day.groupType === "monthly"
+                  ? t("WEEKLY AVG BREAKDOWN", "每週平均分析")
+                  : t("INTERVAL BREAKDOWN (6H)", "時段分析 (6小時)");
               const maxInterval = Math.max(
                 1,
                 ...(day.intervals || []).map((item) => item.exposureLoad || 0)
@@ -488,7 +557,7 @@ export default function SummaryPage() {
                   {expanded && (
                     <div className="summary-native-details">
                       <div className="summary-native-chart-section">
-                        <p className="summary-native-chart-title">{t("INTERVAL BREAKDOWN (6H)", "時段分析 (6小時)")}</p>
+                        <p className="summary-native-chart-title">{breakdownTitle}</p>
                         <div className="summary-native-chart-row">
                           {(day.intervals || []).map((interval) => {
                             return (

@@ -5405,11 +5405,19 @@ html[data-theme="light"] .summary-native-details {
   display: flex;
   height: 110px;
   align-items: flex-end;
-  justify-content: space-around;
+  justify-content: flex-start;
+  gap: 12px;
+  overflow-x: auto;
+  padding: 0 2px 6px;
+  scrollbar-width: none;
+}
+
+.summary-native-chart-row::-webkit-scrollbar {
+  display: none;
 }
 
 .summary-native-bar-container {
-  width: 60px;
+  flex: 0 0 52px;
   text-align: center;
 }
 
