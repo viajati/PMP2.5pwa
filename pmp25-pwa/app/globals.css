@@ -898,6 +898,10 @@ button:disabled {
   gap: 12px;
 }
 
+.home-bottom-grid-route {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .home-bottom-cell {
   min-width: 0;
 }
@@ -4070,6 +4074,13 @@ html[data-theme="dark"] .profile-native-form-card .condition-chip {
   background: #ff717b;
   color: white;
   box-shadow: 0 10px 20px rgba(255, 113, 123, 0.22);
+}
+
+html[data-theme="dark"] .profile-native-form-card .condition-chip-active {
+  border-color: #ff717b;
+  background: #ff717b;
+  color: white;
+  box-shadow: 0 14px 26px rgba(255, 113, 123, 0.32);
 }
 
 .profile-native-form-card .condition-chip:hover,

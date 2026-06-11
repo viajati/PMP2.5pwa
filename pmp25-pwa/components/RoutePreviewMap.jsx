@@ -26,7 +26,7 @@ export default function RoutePreviewMap({ start, end, routeCoords = [] }) {
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
 
-    const center = start || { latitude: 23.7, longitude: 121 };
+    const center = { latitude: 23.7, longitude: 121 };
 
     const map = L.map(containerRef.current, {
       zoomControl: false,

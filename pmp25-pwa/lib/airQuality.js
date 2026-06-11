@@ -18,6 +18,27 @@ function fetchWithTimeout(url, ms = 15000) {
   });
 }
 
+function roundedNumber(value, digits = 1) {
+  const number = Number(value);
+  return Number.isFinite(number) ? Number(number.toFixed(digits)) : null;
+}
+
+function average(values) {
+  const validValues = values
+    .map((value) => Number(value))
+    .filter((value) => Number.isFinite(value));
+
+  if (validValues.length === 0) return null;
+  return validValues.reduce((sum, value) => sum + value, 0) / validValues.length;
+}
+
+function dateString(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 export async function fetchAllCityAirQuality() {
   const cityNames = Object.keys(CITY_COORDS);
   const lats = cityNames.map((city) => CITY_COORDS[city].latitude).join(",");
@@ -59,9 +80,9 @@ export async function fetchAllCityAirQuality() {
     return {
       county: city,
       region: cityRegion(city),
-      pm25: Number((aq.pm2_5 ?? 0).toFixed(1)),
-      pm10: Number((aq.pm10 ?? 0).toFixed(1)),
-      co: Number((aq.carbon_monoxide ?? 0).toFixed(1)),
+      pm25: roundedNumber(aq.pm2_5),
+      pm10: roundedNumber(aq.pm10),
+      co: roundedNumber(aq.carbon_monoxide),
       temp: weather.temperature_2m ?? null,
       humidity: weather.relative_humidity_2m ?? null,
       weatherCode: weather.weather_code ?? null,
@@ -104,9 +125,9 @@ export async function fetchHourlyAirQuality(city, forecastDays = 1) {
     label: time.replace("T", " "),
     date: time.split("T")[0],
     hour: Number(time.split("T")[1]?.split(":")[0] ?? 0),
-    pm25: Number((pm25[index] ?? 0).toFixed(1)),
-    pm10: Number((pm10[index] ?? 0).toFixed(1)),
-    co: Number((co[index] ?? 0).toFixed(1)),
+    pm25: roundedNumber(pm25[index]),
+    pm10: roundedNumber(pm10[index]),
+    co: roundedNumber(co[index]),
     timezone: data.timezone || OPEN_METEO_TIMEZONE,
     timezoneAbbreviation: data.timezone_abbreviation || "GMT+8",
     utcOffsetSeconds: data.utc_offset_seconds ?? 28800,
@@ -130,15 +151,12 @@ export function groupHourlyForecast(hourlyRows) {
 
   return groups.map((group) => {
     const count = group.rows.length;
-    const avgPm25 =
-      count > 0
-        ? group.rows.reduce((sum, row) => sum + row.pm25, 0) / count
-        : 0;
+    const avgPm25 = average(group.rows.map((row) => row.pm25));
 
     return {
       label: group.label,
       count,
-      avgPm25: Number(avgPm25.toFixed(1)),
+      avgPm25: avgPm25 === null ? null : Number(avgPm25.toFixed(1)),
       rows: group.rows,
     };
   });
@@ -152,30 +170,25 @@ export function buildDailyPrediction(hourlyRows) {
     byDate.get(row.date).push(row);
   });
 
-  return Array.from(byDate.entries()).slice(0, 7).map(([date, rows]) => {
-    const avgPm25 =
-      rows.length > 0
-        ? rows.reduce((sum, row) => sum + row.pm25, 0) / rows.length
-        : 0;
+  const firstDate = hourlyRows[0]?.date;
+  const startDate = firstDate ? new Date(`${firstDate}T00:00:00`) : new Date();
 
-    const avgPm10 =
-      rows.length > 0
-        ? rows.reduce((sum, row) => sum + row.pm10, 0) / rows.length
-        : 0;
+  return Array.from({ length: 7 }, (_, index) => {
+    const currentDate = new Date(startDate);
+    currentDate.setDate(startDate.getDate() + index);
 
-    const avgCo =
-      rows.length > 0
-        ? rows.reduce((sum, row) => sum + row.co, 0) / rows.length
-        : 0;
-
-    const d = new Date(date);
+    const date = dateString(currentDate);
+    const rows = byDate.get(date) || [];
+    const avgPm25 = average(rows.map((row) => row.pm25));
+    const avgPm10 = average(rows.map((row) => row.pm10));
+    const avgCo = average(rows.map((row) => row.co));
 
     return {
       date,
-      day: d.toLocaleDateString("en-US", { weekday: "short" }).toUpperCase(),
-      pm25: Number(avgPm25.toFixed(1)),
-      pm10: Number(avgPm10.toFixed(1)),
-      co: Number(avgCo.toFixed(1)),
+      day: currentDate.toLocaleDateString("en-US", { weekday: "short" }).toUpperCase(),
+      pm25: avgPm25 === null ? null : Number(avgPm25.toFixed(1)),
+      pm10: avgPm10 === null ? null : Number(avgPm10.toFixed(1)),
+      co: avgCo === null ? null : Number(avgCo.toFixed(1)),
     };
   });
 }

@@ -10,8 +10,6 @@ import {
   Footprints,
   Gauge,
   RefreshCw,
-  Share2,
-  X,
 } from "lucide-react";
 import OriginalBottomNav from "@/components/OriginalBottomNav";
 import { useAppPreferences } from "@/components/AppPreferencesProvider";
@@ -229,7 +227,6 @@ export default function SummaryPage() {
 
   const [expandedDay, setExpandedDay] = useState(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
-  const [showShareModal, setShowShareModal] = useState(false);
 
   const refreshSummary = useCallback(async () => {
     setSummaryLoading(true);
@@ -329,13 +326,6 @@ export default function SummaryPage() {
               <div className="summary-today-header">
                 <p className="summary-today-label">{t("TODAY'S PM2.5 AVG", "今日 PM2.5 平均")}</p>
                 <div className="summary-today-actions">
-                  <button
-                    type="button"
-                    onClick={() => setShowShareModal(true)}
-                    title={t("Share telemetry", "分享數據")}
-                  >
-                    <Share2 size={24} strokeWidth={2.5} />
-                  </button>
                   <button
                     type="button"
                     onClick={refreshSummary}
@@ -570,42 +560,6 @@ export default function SummaryPage() {
             </p>
           </div>
         </section>
-
-        {showShareModal && (
-          <div className="summary-share-modal" role="dialog" aria-modal="true">
-            <div className="summary-share-card">
-              <button
-                type="button"
-                onClick={() => setShowShareModal(false)}
-                className="summary-share-close"
-                title={t("Close", "關閉")}
-              >
-                <X size={18} strokeWidth={3} />
-              </button>
-              <p className="summary-share-title">{t("SHARE TELEMETRY", "分享數據紀錄")}</p>
-              <p className="summary-share-subtitle">{t("Personal environmental summary", "個人環境數據摘要")}</p>
-              <div className="summary-faux-qr" aria-label={JSON.stringify({ km: today.km, avg: today.avgPm25 })}>
-                {Array.from({ length: 49 }).map((_, index) => (
-                  <span
-                    key={index}
-                    className={(index * 7 + Math.round(today.km * 10) + Math.round(today.avgPm25)) % 3 === 0 ? "summary-qr-cell-on" : ""}
-                  />
-                ))}
-              </div>
-              <div className="summary-share-stats">
-                <div>
-                  <p>{today.km.toFixed(1)}</p>
-                  <span>KM</span>
-                </div>
-                <div>
-                  <p>{today.avgPm25.toFixed(0)}</p>
-                  <span>PM2.5</span>
-                </div>
-              </div>
-              <p className="summary-share-footer">BLUE SKY TELEMETRY · SYNC V1.0</p>
-            </div>
-          </div>
-        )}
 
         <OriginalBottomNav />
       </div>

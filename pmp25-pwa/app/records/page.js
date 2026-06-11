@@ -520,13 +520,24 @@ export default function RecordsPage() {
   ];
   const forecastChartValues = forecastTrendValues.filter((value) => value !== null);
   const hasForecastTrendData = forecastChartValues.length > 0;
-  const forecastMax = Math.max(1, ...forecastChartValues) * 1.6;
-  const forecastLinePoints = forecastTrendValues.map((value, index) => {
+  const forecastChartMin = hasForecastTrendData ? Math.min(...forecastChartValues) : 0;
+  const forecastChartMax = hasForecastTrendData ? Math.max(...forecastChartValues) : 1;
+  const forecastPadding = Math.max(1, (forecastChartMax - forecastChartMin) * 0.22);
+  const forecastDomainMin = Math.max(0, forecastChartMin - forecastPadding);
+  const forecastDomainMax = forecastChartMax + forecastPadding;
+  const forecastDomainRange = Math.max(1, forecastDomainMax - forecastDomainMin);
+  const forecastSlotCount = Math.max(1, forecastTrendValues.length - 1);
+  const forecastPoint = (value, index) => {
     if (value === null) return null;
 
-    const x = 15 + (index / 6) * 300;
-    const y = 15 + (100 - ((value / forecastMax) * 100));
-    return `${x},${y}`;
+    const normalized = (value - forecastDomainMin) / forecastDomainRange;
+    const x = 15 + (index / forecastSlotCount) * 300;
+    const y = 15 + (1 - Math.max(0, Math.min(1, normalized))) * 105;
+    return { x, y };
+  };
+  const forecastLinePoints = forecastTrendValues.map((value, index) => {
+    const point = forecastPoint(value, index);
+    return point ? `${point.x},${point.y}` : null;
   }).filter(Boolean).join(" ");
 
   const routeKm = distanceBetween(startCity, endCity);
@@ -731,53 +742,55 @@ export default function RecordsPage() {
               ))}
             </div>
 
-            <div className={["records2-advice", "records-native-ai", mode === "LIVE" ? `records-health-advice records-health-advice-${healthAdvice.level}` : ""].join(" ")}>
-              <span className="records-native-ai-glow" />
-              {mode === "PLANNER" ? (
-                <Route size={16} className="app-notice-icon" />
-              ) : (
-                <Sparkles size={16} className="app-notice-icon" />
-              )}
+            {mode !== "FORECAST" && (
+              <div className={["records2-advice", "records-native-ai", mode === "LIVE" ? `records-health-advice records-health-advice-${healthAdvice.level}` : ""].join(" ")}>
+                <span className="records-native-ai-glow" />
+                {mode === "PLANNER" ? (
+                  <Route size={16} className="app-notice-icon" />
+                ) : (
+                  <Sparkles size={16} className="app-notice-icon" />
+                )}
 
-              {mode === "LIVE" ? (
-                <div className="records-advice-copy">
-                  <div className="records-advice-head">
-                    <p className="records-advice-kicker">
-                      {airDataWaiting ? t("Loading PM2.5", "載入 PM2.5") : advicePending ? t("Personalizing", "個人化中") : adviceSourceLabel}
+                {mode === "LIVE" ? (
+                  <div className="records-advice-copy">
+                    <div className="records-advice-head">
+                      <p className="records-advice-kicker">
+                        {airDataWaiting ? t("Loading PM2.5", "載入 PM2.5") : advicePending ? t("Personalizing", "個人化中") : adviceSourceLabel}
+                      </p>
+                      <span className="records-advice-pill">
+                        {advicePending ? t("WAITING", "等待中") : healthAdvice.label}
+                      </span>
+                    </div>
+
+                    <p className="records-advice-title">
+                      {airDataWaiting ? t("Waiting for PM2.5 readings...", "等待 PM2.5 讀數...") : advicePending ? t("Reading your profile...", "正在讀取你的健康設定...") : healthAdvice.title}
                     </p>
-                    <span className="records-advice-pill">
-                      {advicePending ? t("WAITING", "等待中") : healthAdvice.label}
-                    </span>
+
+                    <p className="records-advice-summary">
+                      {airDataWaiting ? t("Records will update when the PM2.5 API responds.", "PM2.5 API 回應後會更新紀錄。") : advicePending ? t("Combining PM2.5, weather, and your health profile.", "正在結合 PM2.5、天氣與你的健康設定。") : healthAdvice.summary}
+                    </p>
+
+                    {!advicePending && healthAdvice.actions?.length > 0 && (
+                      <ul className="records-advice-list">
+                        {healthAdvice.actions.map((action) => (
+                          <li key={action}>{action}</li>
+                        ))}
+                      </ul>
+                    )}
+
+                    {!advicePending && adviceFallbackReason && (
+                      <p className="records-advice-status">
+                        {adviceFallbackReason}
+                      </p>
+                    )}
                   </div>
-
-                  <p className="records-advice-title">
-                    {airDataWaiting ? t("Waiting for PM2.5 readings...", "等待 PM2.5 讀數...") : advicePending ? t("Reading your profile...", "正在讀取你的健康設定...") : healthAdvice.title}
+                ) : (
+                  <p className="records-native-ai-text">
+                    {globalAdviceText}
                   </p>
-
-                  <p className="records-advice-summary">
-                    {airDataWaiting ? t("Records will update when the PM2.5 API responds.", "PM2.5 API 回應後會更新紀錄。") : advicePending ? t("Combining PM2.5, weather, and your health profile.", "正在結合 PM2.5、天氣與你的健康設定。") : healthAdvice.summary}
-                  </p>
-
-                  {!advicePending && healthAdvice.actions?.length > 0 && (
-                    <ul className="records-advice-list">
-                      {healthAdvice.actions.map((action) => (
-                        <li key={action}>{action}</li>
-                      ))}
-                    </ul>
-                  )}
-
-                  {!advicePending && adviceFallbackReason && (
-                    <p className="records-advice-status">
-                      {adviceFallbackReason}
-                    </p>
-                  )}
-                </div>
-              ) : (
-                <p className="records-native-ai-text">
-                  {globalAdviceText}
-                </p>
-              )}
-            </div>
+                )}
+              </div>
+            )}
 
             {mode === "LIVE" && (
               <>
@@ -964,7 +977,7 @@ export default function RecordsPage() {
                   </div>
 
                   <div className="records2-soft records-metric-span">
-                    <p className="records2-label">{t("Route PM Avg", "路線 PM 平均")}</p>
+                    <p className="records2-label">{t("Route Load", "路線負荷")}</p>
                     <p
                       className="records2-value records2-value-md"
                       style={{ "--value-color": pmColor(avgRoutePm25) }}
@@ -1163,7 +1176,7 @@ export default function RecordsPage() {
                     {hasForecastTrendData ? (
                       <svg viewBox="0 0 330 140" role="img" aria-label={t("PM2.5 forecast trend", "PM2.5 預測趨勢")}>
                         {forecastTrendValues.map((_, index) => {
-                          const x = 15 + (index / 6) * 300;
+                          const x = 15 + (index / forecastSlotCount) * 300;
                           return (
                             <line
                               key={`grid-${index}`}
@@ -1181,15 +1194,14 @@ export default function RecordsPage() {
                           className="forecast-native-chart-line"
                         />
                         {forecastTrendValues.map((value, index) => {
-                          if (value === null) return null;
+                          const point = forecastPoint(value, index);
+                          if (!point) return null;
 
-                          const x = 15 + (index / 6) * 300;
-                          const y = 15 + (100 - ((value / forecastMax) * 100));
                           return (
                             <circle
                               key={`point-${index}`}
-                              cx={x}
-                              cy={y}
+                              cx={point.x}
+                              cy={point.y}
                               r={index === forecastTrendValues.length - 1 ? 5 : 4}
                               className="forecast-native-chart-dot"
                             />

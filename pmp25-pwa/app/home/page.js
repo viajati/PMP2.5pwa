@@ -1013,8 +1013,8 @@ export default function HomePage() {
   const currentCityExposureDisplay = routeLoadLoading ? "-" : displayNumber(routeLoad?.currentCityExposure, 1);
   const routeMinutesDisplay = routeLoadLoading ? "-" : displayInteger(routeLoad?.routeMinutes);
   const collapsedPmLabel = teleopMode
-    ? `${routePm25Display} µg/m³`
-    : `PM2.5 ${currentCityPm25Display} µg/m³`;
+    ? `${t("Route load", "路線負荷")} ${routePm25Display} µg/m³`
+    : `PM2.5 ${currentCityPm25Display} µg/m³ · ${t("Route load", "路線負荷")} ${routePm25Display} µg/m³`;
 
   return (
     <main className="app-root home-root">
@@ -1293,7 +1293,7 @@ export default function HomePage() {
 
               <div className="home-bottom-divider" />
 
-              <div className="home-bottom-grid">
+              <div className="home-bottom-grid home-bottom-grid-route">
                 <div className="home-bottom-cell">
                   <p className="home-bottom-label">{t("Road Distance", "道路距離")}</p>
                   <p className="home-bottom-value-strong">
@@ -1303,7 +1303,15 @@ export default function HomePage() {
                 </div>
 
                 <div className="home-bottom-cell">
-                  <p className="home-bottom-label">{t("Route PM Avg", "路線 PM 平均")}</p>
+                  <p className="home-bottom-label">{t("Avg PM2.5", "平均 PM2.5")}</p>
+                  <p className="home-bottom-value-strong">
+                    {routePm25Display}
+                    <span className="home-bottom-unit">µg/m³</span>
+                  </p>
+                </div>
+
+                <div className="home-bottom-cell">
+                  <p className="home-bottom-label">{t("Route Load", "路線負荷")}</p>
                   <p className="home-bottom-value-strong">
                     {routePm25Display}
                     <span className="home-bottom-unit">µg/m³</span>
