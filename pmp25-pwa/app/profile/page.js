@@ -27,6 +27,7 @@ import {
   DEFAULT_HEALTH_PROFILE,
   HEALTH_PROFILE_KEY,
   cleanHealthProfile,
+  notificationPm25Threshold,
 } from "@/lib/healthProfile";
 
 const SETUP_KEY = "pmp25_setup_preferences";
@@ -271,11 +272,18 @@ export default function ProfilePage() {
   }
 
   async function saveProfile() {
-    saveJson(HEALTH_PROFILE_KEY, profile);
+    const cleanProfile = cleanHealthProfile(profile);
+
+    saveJson(HEALTH_PROFILE_KEY, cleanProfile);
+    setProfile(cleanProfile);
+
+    if (appPrefs.notifications) {
+      updatePrefs({ notificationThreshold: notificationPm25Threshold(cleanProfile) });
+    }
 
     try {
       if (firebaseReady && user?.uid) {
-        await saveHealthProfile(user.uid, profile);
+        await saveHealthProfile(user.uid, cleanProfile);
       }
 
       setSaveError("");

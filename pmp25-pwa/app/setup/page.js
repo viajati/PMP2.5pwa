@@ -20,6 +20,10 @@ import { useAppPreferences } from "@/components/AppPreferencesProvider";
 import { useAuth } from "@/components/AuthProvider";
 import AvatarPicker, { AvatarVisual } from "@/components/AvatarPicker";
 import { clearUserRoutes } from "@/lib/firebaseData";
+import {
+  loadLocalHealthProfile,
+  notificationPm25Threshold,
+} from "@/lib/healthProfile";
 
 const STORAGE_KEY = "pmp25_setup_preferences";
 
@@ -30,6 +34,7 @@ const DEFAULT_PREFS = {
   darkMode: true,
   chinese: false,
   notifications: true,
+  notificationThreshold: null,
 };
 
 function loadPrefs() {
@@ -227,13 +232,18 @@ export default function SetupPage() {
       const permission = await Notification.requestPermission();
 
       if (permission !== "granted") {
-        updatePrefs({ notifications: false });
+        updatePrefs({ notifications: false, notificationThreshold: null });
         setStatus(t("Notification permission was not granted.", "未取得通知權限。"));
         return;
       }
     }
 
-    updatePrefs({ notifications: value });
+    updatePrefs({
+      notifications: value,
+      notificationThreshold: value
+        ? notificationPm25Threshold(loadLocalHealthProfile())
+        : null,
+    });
     setStatus(value ? t("Pollution alerts enabled.", "污染提醒已啟用。") : t("Pollution alerts disabled.", "污染提醒已關閉。"));
   }
 
@@ -434,8 +444,8 @@ export default function SetupPage() {
 
             <SettingRow
               icon={Bell}
-              title={isChinese ? "污染預警" : "Pollution Alerts"}
-              subtitle={isChinese ? "當 CAQI 超過 50 時通知" : "Notify when CAQI > 50"}
+              title={isChinese ? "開啟通知" : "Turn on Notifications"}
+              subtitle={isChinese ? "依健康設定調整提醒" : "Adjusted by your health profile"}
               right={
                 <ToggleSwitch
                   checked={prefs.notifications}

@@ -17,6 +17,7 @@ export const DEFAULT_PREFS = {
   darkMode: true,
   chinese: false,
   notifications: true,
+  notificationThreshold: null,
 };
 
 const AppPreferencesContext = createContext({

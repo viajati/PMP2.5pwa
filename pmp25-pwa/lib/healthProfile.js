@@ -30,3 +30,24 @@ export function loadLocalHealthProfile() {
     return DEFAULT_HEALTH_PROFILE;
   }
 }
+
+export function notificationPm25Threshold(profile = DEFAULT_HEALTH_PROFILE) {
+  const cleanProfile = cleanHealthProfile(profile);
+  const conditions = new Set(cleanProfile.conditions);
+  const sensitiveConditions = ["asthma", "dust", "sensitivity", "allergies", "cardio"];
+  const hasSensitiveCondition = sensitiveConditions.some((id) => conditions.has(id));
+  let threshold = 50;
+
+  if (hasSensitiveCondition) threshold -= 8;
+  if (cleanProfile.ageLevel === 1 || cleanProfile.ageLevel >= 4) threshold -= 5;
+  if (cleanProfile.activityLevel >= 3 || conditions.has("outdoor")) threshold -= 4;
+  if (cleanProfile.fitnessLevel <= 1) threshold -= 3;
+  if (cleanProfile.fitnessLevel >= 3 && !hasSensitiveCondition) threshold += 3;
+
+  return Math.max(35, Math.min(50, Math.round(threshold / 5) * 5));
+}
+
+export function shouldNotifyForPm25(pm25, profile = DEFAULT_HEALTH_PROFILE) {
+  const value = Number(pm25);
+  return Number.isFinite(value) && value >= notificationPm25Threshold(profile);
+}
