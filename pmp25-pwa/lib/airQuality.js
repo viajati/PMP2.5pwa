@@ -25,6 +25,7 @@ function roundedNumber(value, digits = 1) {
 
 function average(values) {
   const validValues = values
+    .filter((value) => value !== null && value !== undefined && value !== "")
     .map((value) => Number(value))
     .filter((value) => Number.isFinite(value));
 

@@ -518,7 +518,12 @@ export default function RecordsPage() {
     : Math.max(1, Math.min(100, 100 - (potentialBasis * 1.1)));
   const actualRisk = pmRiskMeta(selectedPm25, t);
   const potentialRisk = pmRiskMeta(potentialBasis, t);
-  const forecastTrendValues = dailyPrediction.map((day) => numericValue(day.pm25));
+  const forecastDaysWithData = dailyPrediction.filter((day) => numericValue(day.pm25) !== null);
+  const forecastDaysForDisplay = forecastDaysWithData.length > 0
+    ? forecastDaysWithData
+    : dailyPrediction;
+  const forecastDayCount = forecastDaysWithData.length || dailyPrediction.length || 7;
+  const forecastTrendValues = forecastDaysForDisplay.map((day) => numericValue(day.pm25));
   const forecastChartValues = forecastTrendValues.filter((value) => value !== null);
   const hasForecastTrendData = forecastChartValues.length > 0;
   const forecastChartMin = hasForecastTrendData ? Math.min(...forecastChartValues) : 0;
@@ -1188,11 +1193,13 @@ export default function RecordsPage() {
               </div>
 
               <div className="forecast-section">
-                <h2 className="forecast-section-title">{t("7-Day Prediction Outlook (PM2.5)", "7天預測統計")}</h2>
+                <h2 className="forecast-section-title">
+                  {isChinese ? `${forecastDayCount}天預測統計` : `${forecastDayCount}-Day Prediction Outlook (PM2.5)`}
+                </h2>
 
                 <div className="forecast-week-card forecast-native-week-card">
                   <div className="forecast-week-row">
-                    {dailyPrediction.map((day) => (
+                    {forecastDaysForDisplay.map((day) => (
                       <div key={day.date}>
                         <p className="forecast-week-day">{forecastDayLabel(day)}</p>
                         <Cloud size={20} style={{ color: pmColor(day.pm25) }} />
