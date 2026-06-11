@@ -43,15 +43,79 @@ function getStoredRouteEntryByOffset(offset, routeMap = null) {
   const cloudEntry = routeMap?.[id];
   const gpsOnly = (points = []) =>
     points.filter((point) => point?.source === "gps");
+  const localPoints = typeof window === "undefined" ? [] : gpsOnly(loadRouteById(id));
+  const localSummary = typeof window === "undefined" ? null : loadRouteSummaryById(id);
+  const localSamples = typeof window === "undefined" ? [] : loadPm25SamplesById(id);
 
-  if (cloudEntry) {
-    if (Array.isArray(cloudEntry)) return { points: gpsOnly(cloudEntry), summary: null };
-    if (cloudEntry.summary?.routeKind === "simulation") {
-      return { points: [], summary: null };
+  const mergePoints = (...pointGroups) => {
+    const seen = new Set();
+    const merged = [];
+
+    pointGroups.flat().forEach((point) => {
+      if (!point) return;
+
+      const stamp = timestampMs(point) || "";
+      const lat = Number(point.latitude);
+      const lon = Number(point.longitude);
+      const key = `${point.id || ""}_${stamp}_${Number.isFinite(lat) ? lat.toFixed(5) : ""}_${Number.isFinite(lon) ? lon.toFixed(5) : ""}`;
+
+      if (seen.has(key)) return;
+      seen.add(key);
+      merged.push(point);
+    });
+
+    return merged.sort((a, b) => (timestampMs(a) || 0) - (timestampMs(b) || 0));
+  };
+
+  const mergeSummaries = (...summaries) => {
+    let merged = summaries.filter(Boolean).reduce((result, summary) => {
+      const current = result || {};
+
+      return {
+        ...current,
+        ...summary,
+        distanceKm: Math.max(Number(current.distanceKm) || 0, Number(summary.distanceKm) || 0),
+        routeMinutes: Math.max(Number(current.routeMinutes) || 0, Number(summary.routeMinutes) || 0),
+        samples: Math.max(Number(current.samples) || 0, Number(summary.samples) || 0),
+        pm25SampleCount: Math.max(Number(current.pm25SampleCount) || 0, Number(summary.pm25SampleCount) || 0),
+      };
+    }, null);
+
+    if (!merged && localSamples.length > 0) {
+      merged = {
+        routeKind: "gps",
+        routeSource: "Time samples",
+        samples: localSamples.length,
+        pm25SampleCount: localSamples.length,
+      };
     }
 
-    const points = gpsOnly(cloudEntry.points || []);
-    const summary = cloudEntry.summary || null;
+    if (!merged) return null;
+
+    const summarySamples = summaries.flatMap((summary) => storedPm25Samples(summary));
+    const pm25Samples = mergePoints(summarySamples, localSamples);
+
+    return {
+      ...merged,
+      pm25Samples,
+      pm25SampleCount: pm25Samples.length,
+      samples: Math.max(Number(merged.samples) || 0, pm25Samples.length),
+      routeKind: merged.routeKind || "gps",
+      routeSource: merged.routeSource || (pm25Samples.length > 0 ? "Time samples" : ""),
+    };
+  };
+
+  if (cloudEntry) {
+    if (Array.isArray(cloudEntry)) {
+      return { points: mergePoints(gpsOnly(cloudEntry), localPoints), summary: mergeSummaries(localSummary) };
+    }
+
+    if (cloudEntry.summary?.routeKind === "simulation") {
+      return { points: localPoints, summary: mergeSummaries(localSummary) };
+    }
+
+    const points = mergePoints(gpsOnly(cloudEntry.points || []), localPoints);
+    const summary = mergeSummaries(cloudEntry.summary || null, localSummary);
 
     return {
       points,
@@ -63,13 +127,11 @@ function getStoredRouteEntryByOffset(offset, routeMap = null) {
 
   if (typeof window === "undefined") return { points: [], summary: null };
 
-  const localPoints = gpsOnly(loadRouteById(id));
-  const localSummary = loadRouteSummaryById(id);
-  const savedSamples = loadPm25SamplesById(id);
-  const summary = savedSamples.length > storedPm25Samples(localSummary).length
+  const summary = localSamples.length > storedPm25Samples(localSummary).length
     ? {
         ...(localSummary || {}),
-        pm25Samples: savedSamples,
+        pm25Samples: localSamples,
+        pm25SampleCount: localSamples.length,
         routeKind: localSummary?.routeKind || "gps",
         routeSource: localSummary?.routeSource || "Time samples",
       }

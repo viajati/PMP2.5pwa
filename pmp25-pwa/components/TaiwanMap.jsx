@@ -93,6 +93,7 @@ export default function TaiwanMap({
     window.addEventListener("resize", invalidateMapSize);
     window.addEventListener("orientationchange", invalidateMapSize);
     window.addEventListener("pageshow", invalidateMapSize);
+    window.addEventListener("app:viewport-sync", invalidateMapSize);
     document.addEventListener("visibilitychange", handleVisibilityChange);
     window.visualViewport?.addEventListener("resize", invalidateMapSize);
 
@@ -101,6 +102,7 @@ export default function TaiwanMap({
       window.removeEventListener("resize", invalidateMapSize);
       window.removeEventListener("orientationchange", invalidateMapSize);
       window.removeEventListener("pageshow", invalidateMapSize);
+      window.removeEventListener("app:viewport-sync", invalidateMapSize);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.visualViewport?.removeEventListener("resize", invalidateMapSize);
     };

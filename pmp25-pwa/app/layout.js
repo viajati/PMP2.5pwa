@@ -55,6 +55,20 @@ export const viewport = {
 
 const themeInitScript = `
   (() => {
+    const syncAppHeight = () => {
+      const visualHeight = window.visualViewport?.height || 0;
+      const innerHeight = window.innerHeight || 0;
+      const clientHeight = document.documentElement.clientHeight || 0;
+      const standalone =
+        window.navigator.standalone === true ||
+        window.matchMedia?.("(display-mode: standalone)")?.matches;
+      const height = standalone
+        ? Math.max(visualHeight, innerHeight, clientHeight)
+        : (visualHeight || innerHeight || clientHeight);
+
+      if (height) document.documentElement.style.setProperty("--app-height", height + "px");
+    };
+
     try {
       const raw = localStorage.getItem("pmp25_setup_preferences");
       const prefs = raw ? JSON.parse(raw) : {};
@@ -66,10 +80,14 @@ const themeInitScript = `
       document.documentElement.dataset.lang = lang;
       document.documentElement.lang = prefs.chinese ? "zh-Hant" : "en";
       document.documentElement.style.colorScheme = theme;
+
+      syncAppHeight();
     } catch {
       document.documentElement.dataset.theme = "dark";
       document.documentElement.dataset.lang = "en";
       document.documentElement.style.colorScheme = "dark";
+
+      syncAppHeight();
     }
   })();
 `;

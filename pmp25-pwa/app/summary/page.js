@@ -361,17 +361,19 @@ export default function SummaryPage() {
                 <span className="summary-today-divider" />
 
                 <div>
-                  <p className="summary-today-number">{today.hits}</p>
-                  <p className="summary-today-unit">{t("PM SAMPLES", "PM 樣本")}</p>
+                  <p className="summary-today-number summary-today-risk-word">
+                    {riskName(todayRisk.label, isChinese)}
+                  </p>
+                  <p className="summary-today-unit">{t("RISK", "風險")}</p>
                 </div>
               </div>
 
               <div className="summary-today-footer">
                 <p className="summary-today-rating">
-                  {isChinese ? `風險：${riskName(todayRisk.label, true)}` : `RISK: ${riskName(todayRisk.label)}`}
+                  {t("PERSONAL EXPOSURE", "個人暴露")}
                 </p>
                 <p className="summary-today-location">
-                  {today.isPersonal ? t("PERSONAL EXPOSURE", "個人暴露") : todayLocation} · {today.km} km · {today.minutes} {t("min", "分鐘")} · {today.hits} {t("PM samples", "PM 樣本")}
+                  {today.isPersonal ? todayLocation : t("Phone GPS", "手機 GPS")} · {today.km} km · {today.minutes} {t("min", "分鐘")}
                 </p>
               </div>
             </div>
@@ -457,8 +459,8 @@ export default function SummaryPage() {
                 ? day.dayName
                 : summaryDayName(day, isChinese);
               const subtitle = day.groupType
-                ? `${day.date} · ${day.activeDays} ${t("sample days", "採樣天")} · ${day.hits} ${t("PM samples", "PM 樣本")}`
-                : `${summaryDate(day, isChinese)} · ${day.segments} ${t("segments", "路段")} · ${day.hits} ${t("PM samples", "PM 樣本")}`;
+                ? `${day.date} · ${day.activeDays} ${t("active days", "活動天")} · ${day.km} km`
+                : `${summaryDate(day, isChinese)} · ${day.km} km · ${day.minutes} ${t("min", "分鐘")}`;
 
               return (
                 <button
@@ -551,7 +553,7 @@ export default function SummaryPage() {
 
                       <div className="summary-native-source-row">
                         <p className="summary-inline-meta">
-                          {day.hits} {t("PM samples", "PM 樣本")} · {day.minutes} {t("min", "分鐘")}
+                          {t("Avg", "平均")} {day.avgPm25} · {t("Peak", "最高")} {day.peak} · {t("Low", "最低")} {day.low}
                         </p>
 
                         <span className="summary-source-chip">

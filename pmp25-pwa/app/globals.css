@@ -1118,6 +1118,10 @@ button:disabled {
   padding-inline: 20px;
 }
 
+.phone-frame-map .bottom-nav {
+  position: absolute;
+}
+
 .bottom-nav-panel {
   pointer-events: auto;
   display: grid;
@@ -5130,6 +5134,14 @@ html[data-theme="light"] .summary-native-frame {
   font-size: 42px;
   font-weight: 950;
   line-height: 1;
+}
+
+.summary-today-risk-word {
+  max-width: 150px;
+  font-size: clamp(20px, 6vw, 30px);
+  line-height: 1.05;
+  overflow-wrap: anywhere;
+  text-transform: uppercase;
 }
 
 .summary-today-unit {
