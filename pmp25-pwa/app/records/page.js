@@ -370,7 +370,6 @@ export default function RecordsPage() {
     weatherCode: selectedWeatherCode ?? 0,
     windSpeed: selectedWindSpeed ?? 0,
   };
-  const pollutionScore = selectedPm25 === null ? null : Math.max(0, Math.min(100, 100 - (selectedPm25 * 1.5)));
   const healthProfileKey = JSON.stringify(healthProfile);
   const fallbackHealthAdvice = useMemo(() => (
     buildHealthAdvice({
@@ -709,8 +708,8 @@ export default function RecordsPage() {
 
                 <div className="records-weather-bubbles">
                   <div className="records-weather-bubble records-weather-bubble-pollution">
-                    <p>{t("Pollution", "污染")}</p>
-                    <strong>{pollutionScore === null ? "-" : `${Math.round(pollutionScore)}%`}</strong>
+                    <p>PM10</p>
+                    <strong>{displayWithUnit(selectedPm10, "µg/m³")}</strong>
                   </div>
 
                   <div className="records-weather-bubble records-weather-bubble-wind">
