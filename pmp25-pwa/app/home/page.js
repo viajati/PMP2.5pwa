@@ -345,6 +345,7 @@ export default function HomePage() {
   });
   const locationRef = useRef(location);
   const gpsLocationRef = useRef(null);
+  const gpsUnavailableRef = useRef(false);
 
   const [search, setSearch] = useState("");
   const [selectedRegion, setSelectedRegion] = useState("ALL");
@@ -396,8 +397,7 @@ export default function HomePage() {
 
     const sampleLocation =
       gpsLocationRef.current ||
-      locationRef.current ||
-      CITY_COORDS[currentCity];
+      (gpsUnavailableRef.current ? locationRef.current || CITY_COORDS[currentCity] : null);
     if (!sampleLocation) return null;
 
     const sampleCity = getNearestCity(
@@ -446,6 +446,7 @@ export default function HomePage() {
     });
 
     if (!navigator.geolocation) {
+      gpsUnavailableRef.current = true;
       queueMicrotask(() => {
         if (cancelled) return;
 
@@ -466,6 +467,7 @@ export default function HomePage() {
           accuracy: position.coords.accuracy ?? null,
         };
         gpsLocationRef.current = nextLocation;
+        gpsUnavailableRef.current = false;
 
         setLocation(nextLocation);
         const nearestCity = getNearestCity(
@@ -490,6 +492,7 @@ export default function HomePage() {
         setDistance(result.distance);
       },
       () => {
+        gpsUnavailableRef.current = true;
         setCurrentCity("Hsinchu City");
         setLocation(CITY_COORDS["Hsinchu City"]);
       },
@@ -507,6 +510,7 @@ export default function HomePage() {
           accuracy: position.coords.accuracy ?? null,
         };
         gpsLocationRef.current = nextLocation;
+        gpsUnavailableRef.current = false;
 
         const nearestCity = getNearestCity(
           nextLocation.latitude,
@@ -533,7 +537,9 @@ export default function HomePage() {
           setCurrentCity(nearestCity);
         }
       },
-      () => {},
+      () => {
+        gpsUnavailableRef.current = true;
+      },
       {
         enableHighAccuracy: true,
         maximumAge: 10000,
@@ -918,6 +924,7 @@ export default function HomePage() {
     }
 
     if (!navigator.geolocation) {
+      gpsUnavailableRef.current = true;
       setRecenterTarget(location);
       setRecenterSignal((value) => value + 1);
       return;
@@ -931,6 +938,7 @@ export default function HomePage() {
           accuracy: position.coords.accuracy ?? null,
         };
         gpsLocationRef.current = nextLocation;
+        gpsUnavailableRef.current = false;
 
         setLocation(nextLocation);
         setCurrentCity(

@@ -42,7 +42,11 @@ function getStoredRouteEntryByOffset(offset, routeMap = null) {
   const id = routeDateId(offset);
   const cloudEntry = routeMap?.[id];
   const gpsOnly = (points = []) =>
-    points.filter((point) => point?.source === "gps");
+    points.filter((point) => (
+      point?.source !== "simulation" &&
+      Number.isFinite(Number(point?.latitude)) &&
+      Number.isFinite(Number(point?.longitude))
+    ));
   const localPoints = typeof window === "undefined" ? [] : gpsOnly(loadRouteById(id));
   const localSummary = typeof window === "undefined" ? null : loadRouteSummaryById(id);
   const localSamples = typeof window === "undefined" ? [] : loadPm25SamplesById(id);
