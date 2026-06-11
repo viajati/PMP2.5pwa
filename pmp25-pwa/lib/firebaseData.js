@@ -111,14 +111,19 @@ export function subscribeHealthProfile(uid, onNext, onError) {
 }
 
 export async function saveUserRoute(uid, routeId, points, summary = {}) {
+  const payload = {
+    routeId,
+    summary,
+    updatedAt: serverTimestamp(),
+  };
+
+  if (Array.isArray(points) && points.length > 0) {
+    payload.points = points;
+  }
+
   await setDoc(
     routeDoc(uid, routeId),
-    {
-      routeId,
-      points,
-      summary,
-      updatedAt: serverTimestamp(),
-    },
+    payload,
     { merge: true }
   );
 }

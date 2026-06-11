@@ -35,8 +35,10 @@ import {
   getTodayRouteId,
   getTodayDistance,
   loadTodayPm25Samples,
+  loadTodayRouteSummary,
   loadTodaySimulationRoute,
   loadTodayRoute,
+  savePm25SamplesById,
   saveTodaySimulationRoute,
   saveTodayRoute,
   saveTodayRouteSummary,
@@ -49,6 +51,7 @@ import {
 } from "@/lib/routePlanner";
 import {
   deleteUserRoute,
+  loadUserRouteHistory,
   saveUserRoute,
 } from "@/lib/firebaseData";
 
@@ -93,6 +96,105 @@ function compactRoutePoints(route) {
   }
 
   return points;
+}
+
+function routeHistoryKey(point) {
+  const timestamp = Number(point?.timestamp) || "";
+  const lat = Number(point?.latitude);
+  const lon = Number(point?.longitude);
+
+  return [
+    point?.id || "",
+    timestamp,
+    Number.isFinite(lat) ? lat.toFixed(5) : "",
+    Number.isFinite(lon) ? lon.toFixed(5) : "",
+  ].join(":");
+}
+
+function mergeRouteHistoryPoints(...pointGroups) {
+  const seen = new Set();
+  const merged = [];
+
+  pointGroups.flat().forEach((point) => {
+    const lat = Number(point?.latitude);
+    const lon = Number(point?.longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+
+    const key = routeHistoryKey(point);
+    if (seen.has(key)) return;
+
+    seen.add(key);
+    merged.push({
+      ...point,
+      latitude: lat,
+      longitude: lon,
+      source: point?.source || "gps",
+      timestamp: Number(point?.timestamp) || Date.now(),
+    });
+  });
+
+  return merged.sort((a, b) => (Number(a?.timestamp) || 0) - (Number(b?.timestamp) || 0));
+}
+
+function pm25SampleHistoryKey(sample) {
+  const lat = Number(sample?.latitude);
+  const lon = Number(sample?.longitude);
+
+  return sample?.id || [
+    sample?.sampleKey || sample?.hourKey || "",
+    sample?.city || "",
+    Number(sample?.timestamp) || "",
+    Number.isFinite(lat) ? lat.toFixed(2) : "",
+    Number.isFinite(lon) ? lon.toFixed(2) : "",
+  ].join(":");
+}
+
+function mergePm25SampleHistory(...sampleGroups) {
+  const seen = new Set();
+  const merged = [];
+
+  sampleGroups.flat().forEach((sample) => {
+    const pm25 = Number(sample?.pm25);
+    if (!Number.isFinite(pm25) || pm25 <= 0) return;
+
+    const key = pm25SampleHistoryKey(sample);
+    if (seen.has(key)) return;
+
+    seen.add(key);
+    merged.push({
+      ...sample,
+      pm25: Number(pm25.toFixed(1)),
+      timestamp: Number(sample?.timestamp) || Date.now(),
+    });
+  });
+
+  return merged.sort((a, b) => (Number(a?.timestamp) || 0) - (Number(b?.timestamp) || 0));
+}
+
+function mergeRouteSummaries(localSummary, cloudSummary, pm25Samples) {
+  if (!localSummary && !cloudSummary && !pm25Samples.length) return null;
+
+  const localDistance = Number(localSummary?.distanceKm) || 0;
+  const cloudDistance = Number(cloudSummary?.distanceKm) || 0;
+  const localMinutes = Number(localSummary?.routeMinutes) || 0;
+  const cloudMinutes = Number(cloudSummary?.routeMinutes) || 0;
+
+  return {
+    ...(cloudSummary || {}),
+    ...(localSummary || {}),
+    distanceKm: Math.max(localDistance, cloudDistance),
+    routeMinutes: Math.max(localMinutes, cloudMinutes),
+    samples: Math.max(
+      Number(localSummary?.samples) || 0,
+      Number(cloudSummary?.samples) || 0,
+      pm25Samples.length
+    ),
+    pm25Samples,
+    pm25SampleCount: pm25Samples.length,
+    routeKind: localSummary?.routeKind || cloudSummary?.routeKind || "gps",
+    routeSource: localSummary?.routeSource || cloudSummary?.routeSource || "Time samples",
+    updatedAt: Date.now(),
+  };
 }
 
 function cityPathFromPoints(route = []) {
@@ -427,6 +529,59 @@ export default function HomePage() {
       navigator.geolocation.clearWatch(watchId);
     };
   }, [syncCloudRoute, teleopMode]);
+
+  useEffect(() => {
+    if (!firebaseReady || !user?.uid) return undefined;
+
+    let cancelled = false;
+
+    async function restoreCloudRoute() {
+      try {
+        const routeMap = await loadUserRouteHistory(user.uid, [todayRouteId]);
+        const cloudRoute = routeMap?.[todayRouteId];
+        if (!cloudRoute) return;
+
+        const localRoute = loadTodayRoute();
+        const cloudPoints = Array.isArray(cloudRoute.points) ? cloudRoute.points : [];
+        const mergedRoute = mergeRouteHistoryPoints(localRoute, cloudPoints);
+        const localSamples = loadTodayPm25Samples();
+        const cloudSamples = Array.isArray(cloudRoute.summary?.pm25Samples)
+          ? cloudRoute.summary.pm25Samples
+          : [];
+        const mergedSamples = mergePm25SampleHistory(localSamples, cloudSamples);
+        const mergedSummary = mergeRouteSummaries(
+          loadTodayRouteSummary(),
+          cloudRoute.summary,
+          mergedSamples
+        );
+
+        if (cancelled) return;
+
+        if (mergedRoute.length > localRoute.length) {
+          saveTodayRoute(mergedRoute);
+          setTodayPath(mergedRoute);
+          setDistance(getTodayDistance(mergedRoute));
+        }
+
+        if (mergedSamples.length > localSamples.length) {
+          savePm25SamplesById(todayRouteId, mergedSamples);
+          setPm25SampleCount(mergedSamples.length);
+        }
+
+        if (mergedSummary) {
+          saveTodayRouteSummary(mergedSummary);
+        }
+      } catch (error) {
+        console.warn("Unable to restore cloud route history:", error);
+      }
+    }
+
+    restoreCloudRoute();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [firebaseReady, todayRouteId, user?.uid]);
 
   useEffect(() => {
     if (teleopMode) return undefined;

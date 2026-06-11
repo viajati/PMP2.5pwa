@@ -370,10 +370,13 @@ export function buildRouteStats(route = [], storedSummary = null) {
     const avgPm25 = values.reduce((sum, value) => sum + value, 0) / values.length;
     const peak = Math.max(...values);
     const low = Math.min(...values);
+    const summaryDistance = Number(storedSummary?.distanceKm);
     const summaryMinutes = Number(storedSummary?.routeMinutes);
 
     return {
-      km: 0,
+      km: Number.isFinite(summaryDistance) && summaryDistance > 0
+        ? Number(summaryDistance.toFixed(2))
+        : 0,
       avgPm25: Number(avgPm25.toFixed(1)),
       peak: Number(peak.toFixed(1)),
       low: Number(low.toFixed(1)),

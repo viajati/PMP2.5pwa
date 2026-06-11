@@ -26,16 +26,11 @@ import { loadUserRouteHistory } from "@/lib/firebaseData";
 import { routeDateId } from "@/lib/trackStorage";
 import {
   cityName,
-  riskName,
   routeSourceName,
   summaryDate,
   summaryDayName,
   transportName,
 } from "@/lib/i18n";
-
-function safeRisk(day) {
-  return day?.risk || { label: "LOW", color: "#34C759" };
-}
 
 const PERIOD_LABELS_ZH = {
   weekly: "每週",
@@ -293,7 +288,6 @@ export default function SummaryPage() {
     risk: { label: "LOW", color: "#34C759" },
   };
 
-  const todayRisk = safeRisk(today);
   const todayLocation = today.cityPath?.length > 0
     ? cityName(today.cityPath[today.cityPath.length - 1], isChinese)
     : t("Phone GPS", "手機 GPS");
@@ -352,19 +346,10 @@ export default function SummaryPage() {
                 </div>
               </div>
 
-              <div className="summary-today-main">
+              <div className="summary-today-main summary-today-main-single">
                 <div>
                   <p className="summary-today-number">{today.avgPm25.toFixed(1)}</p>
                   <p className="summary-today-unit">µg/m³</p>
-                </div>
-
-                <span className="summary-today-divider" />
-
-                <div>
-                  <p className="summary-today-number summary-today-risk-word">
-                    {riskName(todayRisk.label, isChinese)}
-                  </p>
-                  <p className="summary-today-unit">{t("RISK", "風險")}</p>
                 </div>
               </div>
 
@@ -449,7 +434,6 @@ export default function SummaryPage() {
 
           <div className="summary-native-list">
             {displayedEntries.map((day) => {
-              const risk = safeRisk(day);
               const expanded = expandedDay === day.id;
               const maxInterval = Math.max(
                 1,
@@ -485,10 +469,6 @@ export default function SummaryPage() {
                         <span>µg/m³</span>
                       </p>
 
-                      <span className="summary-risk-chip" style={{ backgroundColor: risk.color }}>
-                        {riskName(risk.label, isChinese)}
-                      </span>
-
                       {expanded ? (
                         <ChevronUp size={20} className="summary-expand-icon" />
                       ) : (
@@ -502,7 +482,7 @@ export default function SummaryPage() {
                       className="summary-progress-fill"
                       style={{
                         width: `${Math.min(100, (day.exposureLoad / maxExposure) * 100)}%`,
-                        backgroundColor: risk.color,
+                        backgroundColor: "#00D2FF",
                       }}
                     />
                   </div>
@@ -520,7 +500,7 @@ export default function SummaryPage() {
                                     className="summary-native-bar-fill"
                                     style={{
                                       height: `${Math.max(5, Math.min(100, ((interval.exposureLoad || 0) / maxInterval) * 100))}%`,
-                                      backgroundColor: risk.color,
+                                      backgroundColor: "#00D2FF",
                                     }}
                                   />
                                 </div>

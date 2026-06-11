@@ -5129,6 +5129,10 @@ html[data-theme="light"] .summary-native-frame {
   text-align: center;
 }
 
+.summary-today-main-single {
+  justify-content: center;
+}
+
 .summary-today-number {
   color: white;
   font-size: 42px;
