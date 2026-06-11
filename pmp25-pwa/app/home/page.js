@@ -35,7 +35,6 @@ import {
   getTodayDistance,
   loadTodayPm25Samples,
   loadTodayRouteSummary,
-  loadTodaySimulationRoute,
   loadTodayRoute,
   savePm25SamplesById,
   saveTodaySimulationRoute,
@@ -369,6 +368,10 @@ export default function HomePage() {
 
   const [teleopMode, setTeleopMode] = useState(false);
   const [teleopPos, setTeleopPos] = useState(null);
+  const [simulationCity, setSimulationCity] = useState("Taiwan");
+  const [previewCity, setPreviewCity] = useState(null);
+  const [previewPm25, setPreviewPm25] = useState(null);
+  const [previewPm25Loading, setPreviewPm25Loading] = useState(false);
   const [recenterSignal, setRecenterSignal] = useState(0);
   const [recenterTarget, setRecenterTarget] = useState(null);
   const todayRouteId = useMemo(() => getTodayRouteId(), []);
@@ -378,7 +381,10 @@ export default function HomePage() {
   }, [search, selectedRegion, isChinese]);
   const activePath = teleopMode ? simulationPath : todayPath;
   const activeDistance = teleopMode ? simulationDistance : distance;
-  const activeRouteMode = teleopMode ? routeMode : "walk";
+  const activeRouteMode = teleopMode ? routeMode : "gps";
+  const activeRouteKind = teleopMode ? "simulation" : "gps";
+  const activeCity = teleopMode ? simulationCity : currentCity;
+  const activeRoadRoute = roadRoute?.routeKind === activeRouteKind ? roadRoute : null;
 
   const syncCloudRoute = useCallback((route, summary = {}) => {
     if (!firebaseReady || !user?.uid) return;
@@ -436,11 +442,11 @@ export default function HomePage() {
       if (cancelled) return;
 
       const savedRoute = loadTodayRoute();
-      const savedSimulationRoute = loadTodaySimulationRoute();
+      clearTodaySimulationRoute();
       setTodayPath(savedRoute);
       setDistance(getTodayDistance(savedRoute));
-      setSimulationPath(savedSimulationRoute);
-      setSimulationDistance(getTodayDistance(savedSimulationRoute));
+      setSimulationPath([]);
+      setSimulationDistance(0);
     });
 
     if (!navigator.geolocation) {
@@ -627,6 +633,16 @@ export default function HomePage() {
     let cancelled = false;
     const routePoints = compactRoutePoints(activePath);
 
+    if (!teleopMode) {
+      queueMicrotask(() => {
+        if (cancelled) return;
+        setRoadRoute(null);
+        setRoadRoutingLoading(false);
+      });
+
+      return undefined;
+    }
+
     if (routePoints.length < 2) {
       queueMicrotask(() => {
         if (cancelled) return;
@@ -685,6 +701,7 @@ export default function HomePage() {
           routePoints,
           segments,
           source,
+          routeKind: activeRouteKind,
         });
       } finally {
         if (!cancelled) setRoadRoutingLoading(false);
@@ -695,13 +712,13 @@ export default function HomePage() {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [activePath, activeRouteMode]);
+  }, [activePath, activeRouteKind, activeRouteMode, teleopMode]);
 
   useEffect(() => {
     let alive = true;
 
     async function calculateRouteExposureLoad() {
-      if (!CITY_COORDS[currentCity]) {
+      if (!CITY_COORDS[activeCity]) {
         setRouteLoad(null);
         return;
       }
@@ -709,7 +726,7 @@ export default function HomePage() {
       setRouteLoadLoading(true);
 
       try {
-        const uniqueCities = new Set([currentCity]);
+        const uniqueCities = new Set([activeCity]);
 
         for (let i = 0; i < activePath.length; i += 1) {
           const point = activePath[i];
@@ -725,7 +742,7 @@ export default function HomePage() {
           })
         );
 
-        const currentCityPm25 = numericValue(cityPmMap[currentCity]);
+        const currentCityPm25 = numericValue(cityPmMap[activeCity]);
         const currentCityExposure = currentCityPm25 === null
           ? null
           : Number(currentCityPm25.toFixed(1));
@@ -753,7 +770,7 @@ export default function HomePage() {
           avgPm25: currentCityPm25 ?? 0,
           pm25Samples,
         });
-        const enrichedRoadPoints = roadRoute?.routePoints?.map((point) => {
+        const enrichedRoadPoints = activeRoadRoute?.routePoints?.map((point) => {
           const pointCity = point.city || getNearestCity(point.latitude, point.longitude);
           const pointPm25 = numericValue(cityPmMap[pointCity]) ?? currentCityPm25;
 
@@ -763,10 +780,10 @@ export default function HomePage() {
             pm25: pointPm25 === null ? null : Number(pointPm25.toFixed(1)),
           };
         });
-        const routedStats = roadRoute
+        const routedStats = activeRoadRoute
           ? calculateRoadExposure(
               enrichedRoadPoints,
-              roadRoute.segments,
+              activeRoadRoute.segments,
               activeRouteMode,
               baseStats
             )
@@ -790,11 +807,11 @@ export default function HomePage() {
         const hasPmData = pm25Samples.length > 0
           || currentCityPm25 !== null
           || enrichedRoute.some((point) => pointPm25(point) !== null);
-        const routeLoadScore = hasPmData
+        const routeLoadScore = teleopMode && hasPmData
           ? estimateRoutePmLoad(stats.avgPm25, {
               distanceKm: stats.km,
               durationMin: stats.minutes,
-              mode: teleopMode ? routeMode : "gps",
+              mode: routeMode,
             })
           : null;
         const routeSummary = {
@@ -814,13 +831,13 @@ export default function HomePage() {
           routeMode: teleopMode ? routeMode : "gps",
           routeSource: pm25Samples.length > 0 && enrichedRoute.length < 2
             ? "Time samples"
-            : roadRoute?.source || "GPS samples",
+            : activeRoadRoute?.source || "GPS samples",
           routeKind: teleopMode ? "simulation" : "gps",
           calculation: {
-            distance: roadRoute
+            distance: activeRoadRoute
               ? "road-route distance between GPS points"
               : "GPS point-to-point distance",
-            duration: teleopMode && roadRoute
+            duration: teleopMode && activeRoadRoute
               ? `${transportName(routeMode, false)} route duration`
               : stats.durationSource,
             exposure: "time-based PM2.5 average from 10-minute city/location samples",
@@ -847,7 +864,7 @@ export default function HomePage() {
         }
 
         setRouteLoad({
-          city: currentCity,
+          city: activeCity,
           currentCityPm25: currentCityExposure,
           currentCityExposure,
           avgPm25: hasPmData ? stats.avgPm25 : null,
@@ -861,7 +878,7 @@ export default function HomePage() {
           cityPath: stats.cityPath,
           mode: teleopMode ? routeMode : "gps",
           routeSource: teleopMode
-            ? roadRoute?.source || "Simulation"
+            ? activeRoadRoute?.source || "Simulation"
             : routeSummary.routeSource,
           routeKind: teleopMode ? "simulation" : "gps",
         });
@@ -879,28 +896,59 @@ export default function HomePage() {
       alive = false;
       clearTimeout(timer);
     };
-  }, [activePath, activeRouteMode, currentCity, pm25SampleCount, roadRoute, routeMode, syncCloudRoute, teleopMode]);
+  }, [activeCity, activePath, activeRoadRoute, activeRouteMode, pm25SampleCount, routeMode, syncCloudRoute, teleopMode]);
 
-  function handleCitySelect(city) {
-    if (!teleopMode) {
-      closeSearch();
-      return;
+  useEffect(() => {
+    let alive = true;
+
+    if (teleopMode || !previewCity || !CITY_COORDS[previewCity]) {
+      queueMicrotask(() => {
+        if (!alive) return;
+        setPreviewPm25(null);
+        setPreviewPm25Loading(false);
+      });
+      return () => {
+        alive = false;
+      };
     }
 
+    queueMicrotask(() => {
+      if (alive) setPreviewPm25Loading(true);
+    });
+
+    estimateCityPm25(previewCity)
+      .then((value) => {
+        if (alive) setPreviewPm25(value);
+      })
+      .catch(() => {
+        if (alive) setPreviewPm25(null);
+      })
+      .finally(() => {
+        if (alive) setPreviewPm25Loading(false);
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [previewCity, teleopMode]);
+
+  function handleCitySelect(city) {
     const coords = CITY_COORDS[city];
     if (!coords) return;
 
-    setCurrentCity(city);
-    setLocation(coords);
-
     if (teleopMode) {
+      setSimulationCity(city);
       setTeleopPos(coords);
       const result = appendSimulationPoint(coords.latitude, coords.longitude, { city });
       setSimulationPath(result.route);
       setSimulationDistance(result.distance);
+    } else {
+      setPreviewCity(city);
+      setPreviewPm25(null);
     }
 
     closeSearch();
+    setRecenterTarget(coords);
     setRecenterSignal((value) => value + 1);
   }
 
@@ -909,7 +957,7 @@ export default function HomePage() {
     const city = getNearestCity(latitude, longitude);
 
     setTeleopPos(next);
-    setCurrentCity(city);
+    setSimulationCity(city);
 
     const result = appendSimulationPoint(latitude, longitude, { city });
     setSimulationPath(result.route);
@@ -918,13 +966,32 @@ export default function HomePage() {
 
   function toggleTeleop() {
     if (!teleopMode) {
+      clearTodaySimulationRoute();
+      routeCacheRef.current.clear();
+      setSimulationPath([]);
+      setSimulationDistance(0);
+      setRoadRoute(null);
+      setRouteLoad(null);
+      setPreviewCity(null);
+      setPreviewPm25(null);
       setTeleopPos(location);
+      setSimulationCity(getNearestCity(location.latitude, location.longitude) || currentCity);
       setTeleopMode(true);
+      closeSearch();
       return;
     }
 
+    clearTodaySimulationRoute();
+    routeCacheRef.current.clear();
     setTeleopMode(false);
     setTeleopPos(null);
+    setSimulationPath([]);
+    setSimulationDistance(0);
+    setSimulationCity("Taiwan");
+    setRoadRoute(null);
+    setRouteLoad(null);
+    setPreviewCity(null);
+    setPreviewPm25(null);
     closeSearch();
 
     if (gpsLocationRef.current) {
@@ -947,6 +1014,8 @@ export default function HomePage() {
 
     if (!navigator.geolocation) {
       gpsUnavailableRef.current = true;
+      setPreviewCity(null);
+      setPreviewPm25(null);
       setRecenterTarget(location);
       setRecenterSignal((value) => value + 1);
       return;
@@ -966,6 +1035,8 @@ export default function HomePage() {
         setCurrentCity(
           getNearestCity(nextLocation.latitude, nextLocation.longitude)
         );
+        setPreviewCity(null);
+        setPreviewPm25(null);
 
         // Important: pass the fresh GPS directly to the map.
         setRecenterTarget(nextLocation);
@@ -975,6 +1046,8 @@ export default function HomePage() {
         console.warn("GPS recenter failed:", error);
 
         // Fall back to last known app location.
+        setPreviewCity(null);
+        setPreviewPm25(null);
         setRecenterTarget(location);
         setRecenterSignal((value) => value + 1);
       },
@@ -993,6 +1066,7 @@ export default function HomePage() {
       setSimulationDistance(0);
       setRoadRoute(null);
       setRouteLoad(null);
+      setSimulationCity(getNearestCity(location.latitude, location.longitude) || currentCity);
       return;
     }
   }
@@ -1002,7 +1076,15 @@ export default function HomePage() {
     setSearch("");
   }
 
-  const displayedDistance = routeLoad?.routeDistanceKm ?? activeDistance;
+  const isPreviewingCity = !teleopMode && Boolean(previewCity);
+  const displayCity = teleopMode
+    ? simulationCity
+    : isPreviewingCity
+      ? previewCity
+      : currentCity;
+  const displayedDistance = teleopMode
+    ? routeLoad?.routeDistanceKm ?? activeDistance
+    : activeDistance;
   const routeSourceLabel = roadRoutingLoading
     ? "routing road path"
     : teleopMode
@@ -1022,14 +1104,32 @@ export default function HomePage() {
   const routePm25Display = routeLoadLoading ? "-" : displayNumber(routeLoad?.exposureLoad, 1);
   const routeLoadScoreDisplay = routeLoadLoading ? "-" : displayNumber(routeLoad?.routeLoadScore, 1);
   const currentCityPm25Display = routeLoadLoading ? "-" : displayNumber(routeLoad?.currentCityPm25, 1);
-  const currentCityExposureDisplay = routeLoadLoading ? "-" : displayNumber(routeLoad?.currentCityExposure, 1);
+  const displayCityPm25Display = isPreviewingCity
+    ? (previewPm25Loading ? "-" : displayNumber(previewPm25, 1))
+    : currentCityPm25Display;
   const routeMinutesDisplay = routeLoadLoading ? "-" : displayInteger(routeLoad?.routeMinutes);
   const routeModeDisplay = teleopMode
     ? transportName(routeMode, isChinese)
     : t("Live GPS", "即時 GPS");
+  const topCardLabel = homeInfoOpen
+    ? teleopMode
+      ? t("Simulation Route", "模擬路線")
+      : isPreviewingCity
+        ? t("City Preview", "城市預覽")
+        : t("Live Route", "即時路線")
+    : teleopMode
+      ? t("Simulation City", "模擬城市")
+      : isPreviewingCity
+        ? t("Preview City", "預覽城市")
+        : t("Current City", "目前城市");
   const collapsedPmLabel = teleopMode
     ? `${t("Route load", "路線負荷")} ${routeLoadScoreDisplay} ${t("score", "分")}`
-    : `PM2.5 ${currentCityPm25Display} µg/m³ · ${t("Route load", "路線負荷")} ${routeLoadScoreDisplay} ${t("score", "分")}`;
+    : isPreviewingCity
+      ? `${t("Preview PM2.5", "預覽 PM2.5")} ${displayCityPm25Display} µg/m³`
+      : `PM2.5 ${currentCityPm25Display} µg/m³`;
+  const topCardMeta = isPreviewingCity
+    ? `${t("Preview only", "僅預覽")} · ${collapsedPmLabel}`
+    : `${routeModeDisplay} · ${Number(displayedDistance || 0).toFixed(2)} KM · ${collapsedPmLabel}`;
 
   return (
     <main className="app-root home-root">
@@ -1039,38 +1139,40 @@ export default function HomePage() {
           teleopMode={teleopMode}
           teleopPos={teleopPos}
           todayPath={activePath}
-          routePath={roadRoute?.coords || []}
+          routePath={activeRoadRoute?.coords || []}
           onTeleopMove={handleTeleopMove}
           recenterSignal={recenterSignal}
           recenterTarget={recenterTarget}
         />
 
-        {teleopMode && (
-          <div className="home-search-wrap">
-            <div className="map-search-compact">
-              <Search size={20} strokeWidth={3} className="home-search-icon" />
+        <div className="home-search-wrap">
+          <div className="map-search-compact">
+            <Search size={20} strokeWidth={3} className="home-search-icon" />
 
-              <input
-                value={search}
-                onChange={(e) => {
-                  setSearch(e.target.value);
-                  setIsSearching(true);
-                }}
-                onFocus={() => setIsSearching(true)}
-                placeholder={t("Search simulation city...", "搜尋模擬城市...")}
-                className="home-search-input"
-              />
+            <input
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setIsSearching(true);
+              }}
+              onFocus={() => setIsSearching(true)}
+              placeholder={
+                teleopMode
+                  ? t("Search simulation city...", "搜尋模擬城市...")
+                  : t("Preview city PM2.5...", "預覽城市 PM2.5...")
+              }
+              className="home-search-input"
+            />
 
-              {search.length > 0 && (
-                <button type="button" onClick={closeSearch} className="search-clear-button">
-                  <X size={20} />
-                </button>
-              )}
-            </div>
+            {search.length > 0 && (
+              <button type="button" onClick={closeSearch} className="search-clear-button">
+                <X size={20} />
+              </button>
+            )}
           </div>
-        )}
+        </div>
 
-        {teleopMode && isSearching && (
+        {isSearching && (
           <button
             type="button"
             aria-label={t("Close search", "關閉搜尋")}
@@ -1079,7 +1181,7 @@ export default function HomePage() {
           />
         )}
 
-        {teleopMode && isSearching && (
+        {isSearching && (
           <div className="search-panel-compact">
             <div className="search-panel-header">
               <div className="region-filter-list">
@@ -1197,13 +1299,13 @@ export default function HomePage() {
             >
               <div className="home-info-toggle-copy">
                 <p className="home-bottom-label">
-                  {homeInfoOpen ? t("Live Route", "即時路線") : t("Current City", "目前城市")}
+                  {topCardLabel}
                 </p>
                 <p className="home-info-toggle-title">
-                  {cityName(currentCity, isChinese)}
+                  {cityName(displayCity, isChinese)}
                 </p>
                 <p className="home-info-toggle-meta">
-                  {routeModeDisplay} · {Number(displayedDistance || 0).toFixed(2)} KM · {collapsedPmLabel}
+                  {topCardMeta}
                 </p>
               </div>
               <span className="home-info-toggle-icon">
@@ -1221,20 +1323,30 @@ export default function HomePage() {
 
               <div className="home-bottom-grid">
                 <div className="home-bottom-cell">
-                  <p className="home-bottom-label">{t("Current City", "目前城市")}</p>
-                  <p className="home-bottom-value">{cityName(currentCity, isChinese)}</p>
+                  <p className="home-bottom-label">
+                    {teleopMode
+                      ? t("Simulation City", "模擬城市")
+                      : isPreviewingCity
+                        ? t("Preview City", "預覽城市")
+                        : t("Current City", "目前城市")}
+                  </p>
+                  <p className="home-bottom-value">{cityName(displayCity, isChinese)}</p>
                   <p className="home-bottom-sub">
-                    PM2.5 {currentCityPm25Display} µg/m³
+                    PM2.5 {displayCityPm25Display} µg/m³
                   </p>
                 </div>
 
                 <div className="home-bottom-cell">
                   <p className="home-bottom-label">{t("City PM2.5", "城市 PM2.5")}</p>
                   <p className="home-bottom-value-strong">
-                    {currentCityExposureDisplay}
+                    {displayCityPm25Display}
                     <span className="home-bottom-unit">µg/m³</span>
                   </p>
-                  <p className="home-bottom-sub">{t("local estimate", "本地估算")}</p>
+                  <p className="home-bottom-sub">
+                    {isPreviewingCity
+                      ? t("preview only", "僅預覽")
+                      : t("local estimate", "本地估算")}
+                  </p>
                 </div>
               </div>
 
@@ -1314,7 +1426,7 @@ export default function HomePage() {
 
               <div className="home-bottom-divider" />
 
-              <div className="home-bottom-grid home-bottom-grid-route">
+              <div className={["home-bottom-grid", teleopMode ? "home-bottom-grid-route" : ""].join(" ")}>
                 <div className="home-bottom-cell">
                   <p className="home-bottom-label">{t("Road Distance", "道路距離")}</p>
                   <p className="home-bottom-value-strong">
@@ -1331,25 +1443,29 @@ export default function HomePage() {
                   </p>
                 </div>
 
-                <div className="home-bottom-cell">
-                  <p className="home-bottom-label">{t("Route Load", "路線負荷")}</p>
-                  <p className="home-bottom-value-strong">
-                    {routeLoadScoreDisplay}
-                    <span className="home-bottom-unit">{t("score", "分")}</span>
-                  </p>
-                </div>
+                {teleopMode && (
+                  <div className="home-bottom-cell">
+                    <p className="home-bottom-label">{t("Route Load", "路線負荷")}</p>
+                    <p className="home-bottom-value-strong">
+                      {routeLoadScoreDisplay}
+                      <span className="home-bottom-unit">{t("score", "分")}</span>
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="home-bottom-footer">
                 <p className="home-bottom-note">
                   {routeModeDisplay} · {routeSourceDisplay} · {routeMinutesDisplay} {t("min", "分鐘")} · {routeLoad?.sampleCount ?? activePath.length} {routeSampleLabel}
                 </p>
-                <p className="home-bottom-note home-bottom-note-formula">
-                  {t(
-                    "Route load = avg PM2.5 × time, distance, and transport exposure factor.",
-                    "路線負荷 = 平均 PM2.5 × 時間、距離與交通暴露係數。"
-                  )}
-                </p>
+                {teleopMode && (
+                  <p className="home-bottom-note home-bottom-note-formula">
+                    {t(
+                      "Route load = avg PM2.5 × time, distance, and transport exposure factor.",
+                      "路線負荷 = 平均 PM2.5 × 時間、距離與交通暴露係數。"
+                    )}
+                  </p>
+                )}
 
                 {teleopMode && (
                   <button
