@@ -276,6 +276,9 @@ export default function SummaryPage() {
   const displayedEntries = periodKey === "weekly"
     ? summary.days
     : buildSummaryGroups(summary.days, periodKey, isChinese);
+  const displayedTotalKm = Number(displayedEntries
+    .reduce((sum, entry) => sum + (Number(entry.km) || 0), 0)
+    .toFixed(2));
   const today = summary.days[0] || {
     km: 0,
     exposureLoad: 0,
@@ -383,7 +386,7 @@ export default function SummaryPage() {
               <Footprints className="forecast-icon-accent" size={21} strokeWidth={3} />
               <p className="summary-mini-label mt-4">{isChinese ? `${periodLabel}距離` : `${periodLabel} Distance`}</p>
               <p className="summary-mini-value">
-                {summary.totalKm}
+                {displayedTotalKm}
                 <span className="summary-history-unit">KM</span>
               </p>
             </div>
@@ -556,7 +559,7 @@ export default function SummaryPage() {
 
           <div className="summary-weekly-box">
             <p className="summary-weekly-text">
-              {isChinese ? `${periodLabel}總計` : `${periodLabel.toUpperCase()} TOTAL`}: {summary.totalKm.toFixed(2)} KM | AVG {summary.avgPm25.toFixed(1)} PM2.5
+              {isChinese ? `${periodLabel}總計` : `${periodLabel.toUpperCase()} TOTAL`}: {displayedTotalKm.toFixed(2)} KM | AVG {summary.avgPm25.toFixed(1)} PM2.5
             </p>
           </div>
         </section>

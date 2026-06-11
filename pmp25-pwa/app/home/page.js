@@ -498,12 +498,15 @@ export default function HomePage() {
             city: nearestCity,
           }
         );
+        const savedSummary = loadTodayRouteSummary();
+        const nextDistance = resolvedLiveDistance(result.route, savedSummary);
         syncCloudRoute(result.route, {
-          distanceKm: Number(result.distance.toFixed(2)),
+          ...(savedSummary || {}),
+          distanceKm: Number(nextDistance.toFixed(2)),
           routeKind: "gps",
         });
         setTodayPath(result.route);
-        setDistance(result.distance);
+        setDistance(nextDistance);
       },
       () => {
         gpsUnavailableRef.current = true;
@@ -539,12 +542,15 @@ export default function HomePage() {
             city: nearestCity,
           }
         );
+        const savedSummary = loadTodayRouteSummary();
+        const nextDistance = resolvedLiveDistance(result.route, savedSummary);
         syncCloudRoute(result.route, {
-          distanceKm: Number(result.distance.toFixed(2)),
+          ...(savedSummary || {}),
+          distanceKm: Number(nextDistance.toFixed(2)),
           routeKind: "gps",
         });
         setTodayPath(result.route);
-        setDistance(result.distance);
+        setDistance(nextDistance);
 
         if (!teleopMode) {
           setLocation(nextLocation);
@@ -863,6 +869,7 @@ export default function HomePage() {
         if (!teleopMode && (enrichedRoute.length > 0 || pm25Samples.length > 0)) {
           saveTodayRouteSummary(routeSummary);
           syncCloudRoute(enrichedRoute, routeSummary);
+          setDistance(resolvedLiveDistance(enrichedRoute, routeSummary));
         }
 
         if (enrichedRoute.length > 0 && routeMetadataChanged) {
