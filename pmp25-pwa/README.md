@@ -51,11 +51,12 @@ The app separates real movement from simulation. Real GPS tracking writes to the
 2. They choose language and light/dark mode before signing in.
 3. They log in with verified email/password or Google.
 4. Home opens with a GPS-aware Taiwan map.
-5. The app records real GPS samples in the background.
-6. Home estimates route exposure from PM2.5, time, transport mode, and road route where available.
-7. Summary turns the real GPS route into a seven-day history log.
-8. Records provides live city air quality, route planner calculations, and forecast context.
-9. Setup and Profile let the user customize identity, avatar, language, theme, alerts, and health factors.
+5. The app records real GPS samples while the PWA is open and location permission is granted.
+6. Home shows the current GPS city/location and the PM2.5 value fetched for that location.
+7. Home estimates route exposure from PM2.5 samples and road route context where available.
+8. Summary turns the real GPS route and stationary PM2.5 samples into weekly, monthly, and yearly history.
+9. Records provides live city air quality, route planner calculations, and forecast context.
+10. Setup and Profile let the user customize identity, avatar, language, theme, alerts, and health factors.
 
 ## Authentication
 
@@ -97,8 +98,11 @@ Real GPS behavior:
 
 - Real movement uses `navigator.geolocation.watchPosition`.
 - GPS points are stored under the real route storage namespace.
-- Real GPS tracking continues even when simulation mode is active.
-- Summary reads only real GPS route points.
+- Home resolves the user's GPS coordinate to the nearest supported Taiwan city and fetches PM2.5 for that location.
+- The collapsed Home card shows current city/location and current PM2.5 in GPS mode.
+- The app saves PM2.5 samples every 10 minutes while the PWA is open, even if the user does not move.
+- Movement GPS points are still saved separately, so distance and route path continue to work when the user travels.
+- Summary reads only real GPS route points and time-based PM2.5 samples.
 
 Simulation behavior:
 
@@ -117,13 +121,33 @@ city load = current city PM2.5
 distance and minutes = route context only
 ```
 
-Distance and duration:
+PM2.5 exposure:
+
+- Home takes a PM2.5 sample at least every 10 minutes while the app is open.
+- If the user stays still, those timed PM2.5 samples still count toward daily exposure.
+- If the user moves, GPS route points are enriched with city/location PM2.5 when available.
+- Daily PM2.5 average is calculated from saved PM2.5 samples for that day.
+- Missing API values are shown as `-`, not `0`, so loading data is not confused with clean air.
+
+Distance and route:
 
 - If road routing is available, Home uses OSRM route geometry between sampled points.
 - If OSRM fails, Home falls back to GPS sample-to-sample distance.
-- Walking and biking use road geometry but estimate travel time from typical speeds.
+- Simulation mode uses the same road routing preview, but its points are stored separately from real GPS history.
+- Summary distance comes from saved real route summaries when available; otherwise it recomputes distance from real GPS points.
+
+Transport time:
+
+- Car: uses OSRM driving duration when available. If OSRM fails, fallback duration is `distanceKm * 1.4` minutes.
+- Bike: uses routed or fallback distance with a typical speed of `16 km/h`, so `minutes = distanceKm / 16 * 60`.
+- Walk: uses routed or fallback distance with a typical speed of `5 km/h`, so `minutes = distanceKm / 5 * 60`.
 - Distance and minutes do not change the route load number.
-- Summary prefers saved road-route distance when available; otherwise it uses GPS timestamps and distance.
+
+Route PM average:
+
+- Records Planner uses the simple PM2.5 average between origin and destination city readings.
+- Home route PM average uses current city/location PM2.5, timed PM2.5 samples, and movement route samples when available.
+- Distance and minutes are displayed for context, but they do not multiply or increase the PM2.5 average.
 
 ## Records
 
@@ -132,6 +156,7 @@ Records has three sections:
 - Live: city-level PM2.5, PM10, CO, temperature, humidity, wind, weather state, CAQI-style score, and safety advice.
 - Planner: origin, destination, transport mode, route calculation, distance, time, average PM2.5, and route PM average.
 - Forecast: daily PM2.5, PM10, and CO prediction derived from hourly air quality forecasts.
+- Profile-based advice: waits in a loading state until PM2.5 and the AI/fallback advice response are ready.
 
 Buttons and controls:
 

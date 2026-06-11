@@ -122,6 +122,7 @@ html,
 body {
   margin: 0;
   min-height: 100%;
+  min-height: var(--app-height, 100%);
   height: 100%;
   background: var(--app-window-bg);
 }
@@ -155,6 +156,7 @@ button:disabled {
 .app-root {
   min-height: 100vh;
   min-height: 100dvh;
+  min-height: var(--app-height, 100dvh);
   background: var(--app-window-bg);
 }
 
@@ -179,8 +181,10 @@ button:disabled {
 .phone-frame-map {
   height: 100vh;
   height: 100dvh;
+  height: var(--app-height, 100dvh);
   min-height: 100vh;
   min-height: 100dvh;
+  min-height: var(--app-height, 100dvh);
   overflow: hidden;
   background: #95d9e8;
 }
@@ -188,8 +192,10 @@ button:disabled {
 .home-root {
   height: 100vh;
   height: 100dvh;
+  height: var(--app-height, 100dvh);
   max-height: 100vh;
   max-height: 100dvh;
+  max-height: var(--app-height, 100dvh);
   overflow: hidden;
   overscroll-behavior: none;
 }
@@ -5663,7 +5669,9 @@ html[data-theme="light"] .setup-native-content .settings-section-label {
 
   .phone-frame-map {
     height: 100dvh;
+    height: var(--app-height, 100dvh);
     min-height: 100dvh;
+    min-height: var(--app-height, 100dvh);
   }
 }
 

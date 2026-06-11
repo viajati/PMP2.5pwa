@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
@@ -37,13 +37,21 @@ export default function TaiwanMap({
   const mapRef = useRef(null);
   const markerRef = useRef(null);
   const polylineRef = useRef(null);
+  const initialLocationRef = useRef(location);
   const lastRecenterSignalRef = useRef(recenterSignal);
+
+  const invalidateMapSize = useCallback(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    map.invalidateSize();
+  }, []);
 
   // Create map once.
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
 
-    const initialPosition = location || {
+    const initialPosition = initialLocationRef.current || {
       latitude: 23.5,
       longitude: 121.0,
     };
@@ -60,9 +68,7 @@ export default function TaiwanMap({
 
     mapRef.current = map;
 
-    setTimeout(() => {
-      map.invalidateSize();
-    }, 100);
+    window.setTimeout(invalidateMapSize, 100);
 
     return () => {
       map.remove();
@@ -70,7 +76,35 @@ export default function TaiwanMap({
       markerRef.current = null;
       polylineRef.current = null;
     };
-  }, []);
+  }, [invalidateMapSize]);
+
+  useEffect(() => {
+    const timers = [0, 120, 360, 800].map((delay) =>
+      window.setTimeout(invalidateMapSize, delay)
+    );
+
+    function handleVisibilityChange() {
+      if (document.visibilityState === "visible") {
+        invalidateMapSize();
+        window.setTimeout(invalidateMapSize, 160);
+      }
+    }
+
+    window.addEventListener("resize", invalidateMapSize);
+    window.addEventListener("orientationchange", invalidateMapSize);
+    window.addEventListener("pageshow", invalidateMapSize);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.visualViewport?.addEventListener("resize", invalidateMapSize);
+
+    return () => {
+      timers.forEach((timer) => window.clearTimeout(timer));
+      window.removeEventListener("resize", invalidateMapSize);
+      window.removeEventListener("orientationchange", invalidateMapSize);
+      window.removeEventListener("pageshow", invalidateMapSize);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.visualViewport?.removeEventListener("resize", invalidateMapSize);
+    };
+  }, [invalidateMapSize]);
 
   // Update active marker.
   useEffect(() => {

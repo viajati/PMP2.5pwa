@@ -4,6 +4,7 @@ import { AuthProvider } from "@/components/AuthProvider";
 import AuthGate from "@/components/AuthGate";
 import { AppPreferencesProvider } from "@/components/AppPreferencesProvider";
 import ServiceWorkerRegistration from "@/components/ServiceWorkerRegistration";
+import ViewportSizeSync from "@/components/ViewportSizeSync";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -85,6 +86,7 @@ export default function RootLayout({ children }) {
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
+        <ViewportSizeSync />
         <AuthProvider>
           <AppPreferencesProvider>
             <AuthGate>{children}</AuthGate>

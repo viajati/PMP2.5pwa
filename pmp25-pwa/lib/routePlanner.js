@@ -49,5 +49,5 @@ export function routeDurationForMode(mode = "car", distanceKm = 0, drivingMinute
 
 export function estimateRoutePmLoad(pm25) {
   const value = Number(pm25);
-  return Number.isFinite(value) ? Number(value.toFixed(1)) : 0;
+  return Number.isFinite(value) ? Number(value.toFixed(1)) : null;
 }

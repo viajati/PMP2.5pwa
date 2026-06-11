@@ -270,6 +270,7 @@ export default function RecordsPage() {
   const [healthProfile, setHealthProfile] = useState(DEFAULT_HEALTH_PROFILE);
   const [aiHealthAdvice, setAiHealthAdvice] = useState(null);
   const [adviceLoading, setAdviceLoading] = useState(false);
+  const [adviceResolved, setAdviceResolved] = useState(false);
 
   const [startCity, setStartCity] = useState("Taipei City");
   const [endCity, setEndCity] = useState("Hsinchu City");
@@ -385,13 +386,17 @@ export default function RecordsPage() {
       queueMicrotask(() => {
         setAiHealthAdvice(null);
         setAdviceLoading(false);
+        setAdviceResolved(false);
       });
       return undefined;
     }
 
     const controller = new AbortController();
     queueMicrotask(() => {
-      if (!controller.signal.aborted) setAdviceLoading(true);
+      if (!controller.signal.aborted) {
+        setAdviceLoading(true);
+        setAdviceResolved(false);
+      }
     });
 
     const adviceRequest = {
@@ -431,6 +436,7 @@ export default function RecordsPage() {
         if (!controller.signal.aborted) {
           setAiHealthAdvice(cachedAdvice);
           setAdviceLoading(false);
+          setAdviceResolved(true);
         }
       });
       return () => controller.abort();
@@ -454,6 +460,7 @@ export default function RecordsPage() {
         }
 
         setAiHealthAdvice(advice);
+        setAdviceResolved(true);
 
         if (advice?.source === "ai") {
           writeAdviceCache(adviceCacheKey, advice, AI_ADVICE_CLIENT_CACHE_MS);
@@ -465,6 +472,7 @@ export default function RecordsPage() {
         if (error.name !== "AbortError") {
           console.warn("[Records] AI advice request failed:", error.message);
           setAiHealthAdvice(null);
+          setAdviceResolved(true);
         }
       })
       .finally(() => {
@@ -580,6 +588,7 @@ export default function RecordsPage() {
     ? geminiFallbackReason(healthAdvice.providerError, t)
     : "";
   const airDataWaiting = selectedPm25 === null;
+  const advicePending = airDataWaiting || adviceLoading || !adviceResolved;
 
   function forecastDayLabel(day) {
     if (!isChinese) return day.day;
@@ -734,22 +743,22 @@ export default function RecordsPage() {
                 <div className="records-advice-copy">
                   <div className="records-advice-head">
                     <p className="records-advice-kicker">
-                      {airDataWaiting ? t("Loading PM2.5", "載入 PM2.5") : adviceLoading ? t("Personalizing", "個人化中") : adviceSourceLabel}
+                      {airDataWaiting ? t("Loading PM2.5", "載入 PM2.5") : advicePending ? t("Personalizing", "個人化中") : adviceSourceLabel}
                     </p>
                     <span className="records-advice-pill">
-                      {airDataWaiting ? t("WAITING", "等待中") : healthAdvice.label}
+                      {advicePending ? t("WAITING", "等待中") : healthAdvice.label}
                     </span>
                   </div>
 
                   <p className="records-advice-title">
-                    {airDataWaiting ? t("Waiting for PM2.5 readings...", "等待 PM2.5 讀數...") : adviceLoading ? t("Reading your profile...", "正在讀取你的健康設定...") : healthAdvice.title}
+                    {airDataWaiting ? t("Waiting for PM2.5 readings...", "等待 PM2.5 讀數...") : advicePending ? t("Reading your profile...", "正在讀取你的健康設定...") : healthAdvice.title}
                   </p>
 
                   <p className="records-advice-summary">
-                    {airDataWaiting ? t("Records will update when the PM2.5 API responds.", "PM2.5 API 回應後會更新紀錄。") : adviceLoading ? t("Combining PM2.5, weather, and your health profile.", "正在結合 PM2.5、天氣與你的健康設定。") : healthAdvice.summary}
+                    {airDataWaiting ? t("Records will update when the PM2.5 API responds.", "PM2.5 API 回應後會更新紀錄。") : advicePending ? t("Combining PM2.5, weather, and your health profile.", "正在結合 PM2.5、天氣與你的健康設定。") : healthAdvice.summary}
                   </p>
 
-                  {!airDataWaiting && !adviceLoading && healthAdvice.actions?.length > 0 && (
+                  {!advicePending && healthAdvice.actions?.length > 0 && (
                     <ul className="records-advice-list">
                       {healthAdvice.actions.map((action) => (
                         <li key={action}>{action}</li>
@@ -757,7 +766,7 @@ export default function RecordsPage() {
                     </ul>
                   )}
 
-                  {!airDataWaiting && !adviceLoading && adviceFallbackReason && (
+                  {!advicePending && adviceFallbackReason && (
                     <p className="records-advice-status">
                       {adviceFallbackReason}
                     </p>

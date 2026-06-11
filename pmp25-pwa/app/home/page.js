@@ -830,6 +830,9 @@ export default function HomePage() {
   const currentCityPm25Display = routeLoadLoading ? "-" : displayNumber(routeLoad?.currentCityPm25, 1);
   const currentCityExposureDisplay = routeLoadLoading ? "-" : displayNumber(routeLoad?.currentCityExposure, 1);
   const routeMinutesDisplay = routeLoadLoading ? "-" : displayInteger(routeLoad?.routeMinutes);
+  const collapsedPmLabel = teleopMode
+    ? `${routePm25Display} µg/m³`
+    : `PM2.5 ${currentCityPm25Display} µg/m³`;
 
   return (
     <main className="app-root home-root">
@@ -1001,7 +1004,7 @@ export default function HomePage() {
                   {cityName(currentCity, isChinese)}
                 </p>
                 <p className="home-info-toggle-meta">
-                  {transportName(routeMode, isChinese)} · {Number(displayedDistance || 0).toFixed(2)} KM · {routePm25Display} µg/m³
+                  {transportName(routeMode, isChinese)} · {Number(displayedDistance || 0).toFixed(2)} KM · {collapsedPmLabel}
                 </p>
               </div>
               <span className="home-info-toggle-icon">
