@@ -36,6 +36,7 @@ import {
   loadTodayPm25Samples,
   loadTodayRouteSummary,
   loadTodayRoute,
+  movementRoutePoints,
   savePm25SamplesById,
   saveTodaySimulationRoute,
   saveTodayRoute,
@@ -398,6 +399,10 @@ export default function HomePage() {
     return getFilteredCities(search, selectedRegion, isChinese);
   }, [search, selectedRegion, isChinese]);
   const activePath = teleopMode ? simulationPath : todayPath;
+  const displayMapPath = useMemo(
+    () => (teleopMode ? activePath : movementRoutePoints(activePath)),
+    [activePath, teleopMode]
+  );
   const activeDistance = teleopMode ? simulationDistance : distance;
   const activeRouteMode = teleopMode ? routeMode : "gps";
   const activeRouteKind = teleopMode ? "simulation" : "gps";
@@ -422,11 +427,15 @@ export default function HomePage() {
       (!teleopMode && gpsUnavailableRef.current ? locationRef.current || CITY_COORDS[currentCity] : null);
     if (!sampleLocation) return null;
 
-    const sampleCity = getNearestCity(
+    const nearestSampleCity = getNearestCity(
       sampleLocation.latitude,
       sampleLocation.longitude
     );
-    const cityForSample = CITY_COORDS[sampleCity] ? sampleCity : currentCity;
+    const cityForSample = !teleopMode && CITY_COORDS[currentCity]
+      ? currentCity
+      : CITY_COORDS[nearestSampleCity]
+        ? nearestSampleCity
+        : currentCity;
     if (!CITY_COORDS[cityForSample]) return null;
 
     const airSample = await fetchCurrentCityAirSample(cityForSample);
@@ -492,12 +501,10 @@ export default function HomePage() {
         gpsLocationRef.current = nextLocation;
         gpsUnavailableRef.current = false;
 
-        setLocation(nextLocation);
         const nearestCity = getNearestCity(
           nextLocation.latitude,
           nextLocation.longitude
         );
-        setCurrentCity(nearestCity);
 
         const result = appendPoint(
           nextLocation.latitude,
@@ -507,6 +514,10 @@ export default function HomePage() {
             city: nearestCity,
           }
         );
+        if (result.accepted || result.route.length <= 1 || currentCity === "Taiwan") {
+          setLocation(nextLocation);
+          setCurrentCity(nearestCity);
+        }
         const savedSummary = loadTodayRouteSummary();
         const nextDistance = resolvedLiveDistance(result.route, savedSummary);
         if (result.accepted) {
@@ -567,7 +578,7 @@ export default function HomePage() {
         setTodayPath(result.route);
         setDistance(nextDistance);
 
-        if (!teleopMode) {
+        if (!teleopMode && result.accepted) {
           setLocation(nextLocation);
           setCurrentCity(nearestCity);
         }
@@ -586,7 +597,7 @@ export default function HomePage() {
       cancelled = true;
       navigator.geolocation.clearWatch(watchId);
     };
-  }, [syncCloudRoute, teleopMode]);
+  }, [currentCity, syncCloudRoute, teleopMode]);
 
   useEffect(() => {
     if (!firebaseReady || !user?.uid) return undefined;
@@ -1140,7 +1151,7 @@ export default function HomePage() {
   const routeSourceDisplay = routeSourceName(routeSourceLabel, isChinese);
   const routeCityPath = routeLoadForDisplay?.cityPath?.length
     ? routeLoadForDisplay.cityPath
-    : cityPathFromPoints(activePath);
+    : cityPathFromPoints(displayMapPath.length > 0 ? displayMapPath : activePath);
   const routeCityPathVisible = visibleCityPath(routeCityPath, routePathOpen);
   const routeCityPathHiddenCount = Math.max(0, routeCityPath.length - 4);
   const routeSampleLabel = routeLoadForDisplay?.pm25SampleCount > 0
@@ -1185,7 +1196,7 @@ export default function HomePage() {
           location={location}
           teleopMode={teleopMode}
           teleopPos={teleopPos}
-          todayPath={activePath}
+          todayPath={displayMapPath}
           routePath={activeRoadRoute?.coords || []}
           onTeleopMove={handleTeleopMove}
           recenterSignal={recenterSignal}

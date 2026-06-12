@@ -138,6 +138,30 @@ export function calculateRouteDistanceKm(route = []) {
   return total;
 }
 
+export function movementRoutePoints(route = []) {
+  if (!route || route.length < 2) return [];
+
+  const points = [];
+
+  for (let i = 1; i < route.length; i += 1) {
+    const prev = route[i - 1];
+    const curr = route[i];
+    const segment = movementSegmentStats(prev, curr);
+    if (!segment.counted) continue;
+
+    if (points.length === 0) {
+      points.push(prev);
+    } else {
+      const last = points[points.length - 1];
+      if (last !== prev) points.push(prev);
+    }
+
+    points.push(curr);
+  }
+
+  return points;
+}
+
 export function loadTodayRoute() {
   return loadRouteById(getTodayRouteId());
 }

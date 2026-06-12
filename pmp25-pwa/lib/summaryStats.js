@@ -2,6 +2,7 @@ import {
   loadPm25SamplesById,
   loadRouteById,
   loadRouteSummaryById,
+  movementRoutePoints,
   movementSegmentStats,
   routeDateId,
 } from "@/lib/trackStorage";
@@ -345,19 +346,47 @@ function routeDistanceAndMinutes(route = []) {
 }
 
 function cityPathFor(route) {
-  return route.reduce((path, point) => {
+  const movementPoints = movementRoutePoints(route);
+  const sourcePoints = movementPoints.length > 0
+    ? movementPoints
+    : route.length > 0
+      ? [route[route.length - 1]]
+      : [];
+
+  return sourcePoints.reduce((path, point) => {
     const city = pointCity(point);
     if (city && path[path.length - 1] !== city) path.push(city);
     return path;
   }, []);
 }
 
-function sampleCityPathFor(samples) {
-  return samples.reduce((path, sample) => {
+function dominantSampleCityPath(samples) {
+  if (!samples.length) return [];
+
+  const counts = new Map();
+  let latestCity = "";
+
+  samples.forEach((sample) => {
     const city = sample?.city || pointCity(sample);
-    if (city && path[path.length - 1] !== city) path.push(city);
-    return path;
-  }, []);
+    if (!city) return;
+
+    latestCity = city;
+    counts.set(city, (counts.get(city) || 0) + 1);
+  });
+
+  if (!counts.size) return [];
+
+  let bestCity = latestCity;
+  let bestCount = counts.get(latestCity) || 0;
+
+  counts.forEach((count, city) => {
+    if (count > bestCount) {
+      bestCity = city;
+      bestCount = count;
+    }
+  });
+
+  return bestCity ? [bestCity] : [];
 }
 
 function hasMeasuredPm25(route) {
@@ -411,7 +440,7 @@ export function buildRouteStats(route = [], storedSummary = null) {
       segments: 0,
       hits: pm25Samples.length,
       intervals: finalizeIntervals(sampleBins),
-      cityPath: sampleCityPathFor(pm25Samples),
+      cityPath: dominantSampleCityPath(pm25Samples),
       durationSource: "time-samples",
       routeMode: storedSummary?.routeMode || "",
       routeSource: "Time samples",
@@ -495,7 +524,10 @@ export function buildRouteStats(route = [], storedSummary = null) {
     : !measuredPm25 && storedAvgPm25 > 0
       ? storedAvgPm25
       : Number(avgPm25.toFixed(1));
-  const primaryCityPath = sampleCityPathFor(pm25Samples);
+  const routeCityPath = cityPathFor(points);
+  const primaryCityPath = countedSegments > 0
+    ? routeCityPath
+    : dominantSampleCityPath(pm25Samples);
 
   return {
     avgPm25: displayedAvgPm25,
@@ -515,7 +547,7 @@ export function buildRouteStats(route = [], storedSummary = null) {
     segments: countedSegments,
     hits: hasPm25Samples ? pm25Samples.length : points.length,
     intervals: sampleIntervals || finalizeIntervals(bins),
-    cityPath: primaryCityPath.length > 0 ? primaryCityPath : cityPathFor(points),
+    cityPath: primaryCityPath.length > 0 ? primaryCityPath : routeCityPath,
     durationSource: hasPm25Samples && points.length <= 1
       ? "time-samples"
       : storedSummary?.routeSource === "OSRM"
