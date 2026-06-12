@@ -817,6 +817,7 @@ export default function HomePage() {
         const baseStats = buildRouteStats(enrichedRoute, {
           avgPm25: currentCityPm25 ?? 0,
           pm25Samples,
+          routeKind: activeRouteKind,
         });
         const enrichedRoadPoints = activeRoadRoute?.routePoints?.map((point) => {
           const pointCity = point.city || getNearestCity(point.latitude, point.longitude);
@@ -864,7 +865,7 @@ export default function HomePage() {
           : null;
         const routeSummary = {
           distanceKm: stats.km,
-          distanceSource: "filtered-gps",
+          distanceSource: teleopMode ? "simulation" : "filtered-gps",
           routeMinutes: stats.minutes,
           exposureLoad: hasPmData ? stats.exposureLoad : null,
           avgPm25: hasPmData ? stats.avgPm25 : null,
@@ -885,7 +886,9 @@ export default function HomePage() {
           calculation: {
             distance: activeRoadRoute
               ? "road-route distance between GPS points"
-              : "filtered GPS point-to-point distance",
+              : teleopMode
+                ? "simulation point-to-point distance"
+                : "filtered GPS point-to-point distance",
             duration: teleopMode && activeRoadRoute
               ? `${transportName(routeMode, false)} route duration`
               : stats.durationSource,

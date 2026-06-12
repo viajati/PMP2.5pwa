@@ -2,6 +2,7 @@ import {
   loadPm25SamplesById,
   loadRouteById,
   loadRouteSummaryById,
+  calculateDistanceKm,
   movementRoutePoints,
   movementSegmentStats,
   routeDateId,
@@ -345,8 +346,8 @@ function routeDistanceAndMinutes(route = []) {
   return { km, minutes };
 }
 
-function cityPathFor(route) {
-  const movementPoints = movementRoutePoints(route);
+function cityPathFor(route, filterMovement = true) {
+  const movementPoints = filterMovement ? movementRoutePoints(route) : route;
   const sourcePoints = movementPoints.length > 0
     ? movementPoints
     : route.length > 0
@@ -395,6 +396,7 @@ function hasMeasuredPm25(route) {
 
 export function buildRouteStats(route = [], storedSummary = null) {
   const points = Array.isArray(route) ? route : [];
+  const isSimulation = storedSummary?.routeKind === "simulation";
   const bins = emptyIntervals();
   const pm25Samples = mergeMovementSamples(points, storedPm25Samples(storedSummary));
   const hasPm25Samples = pm25Samples.length > 0;
@@ -462,7 +464,9 @@ export function buildRouteStats(route = [], storedSummary = null) {
   for (let index = 1; index < points.length; index += 1) {
     const prev = points[index - 1];
     const curr = points[index];
-    const segment = movementSegmentStats(prev, curr);
+    const segment = isSimulation
+      ? { counted: true, km: calculateDistanceKm(prev, curr) }
+      : movementSegmentStats(prev, curr);
     if (!segment.counted) continue;
 
     const segmentKm = segment.km;
@@ -524,7 +528,7 @@ export function buildRouteStats(route = [], storedSummary = null) {
     : !measuredPm25 && storedAvgPm25 > 0
       ? storedAvgPm25
       : Number(avgPm25.toFixed(1));
-  const routeCityPath = cityPathFor(points);
+  const routeCityPath = cityPathFor(points, !isSimulation);
   const primaryCityPath = countedSegments > 0
     ? routeCityPath
     : dominantSampleCityPath(pm25Samples);

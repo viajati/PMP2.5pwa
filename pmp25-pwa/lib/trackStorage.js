@@ -138,6 +138,18 @@ export function calculateRouteDistanceKm(route = []) {
   return total;
 }
 
+export function calculateRawRouteDistanceKm(route = []) {
+  if (!route || route.length < 2) return 0;
+
+  let total = 0;
+
+  for (let i = 1; i < route.length; i += 1) {
+    total += calculateDistanceKm(route[i - 1], route[i]);
+  }
+
+  return total;
+}
+
 export function movementRoutePoints(route = []) {
   if (!route || route.length < 2) return [];
 
@@ -351,7 +363,7 @@ export function appendSimulationPoint(latitude, longitude, metadata = {}) {
 
   return {
     route: nextRoute,
-    distance: getTodayDistance(nextRoute),
+    distance: calculateRawRouteDistanceKm(nextRoute),
   };
 }
 
