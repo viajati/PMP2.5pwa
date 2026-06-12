@@ -2,6 +2,11 @@ const ROUTE_KEY = "pmp25_real_gps_route";
 const ROUTE_SUMMARY_KEY = "pmp25_real_gps_route_summary";
 const SIMULATION_ROUTE_KEY = "pmp25_simulation_route";
 const PM25_SAMPLES_KEY = "pmp25_pm25_samples";
+const MAX_GPS_ACCURACY_M = 120;
+const MIN_MOVEMENT_SEGMENT_KM = 0.05;
+const MAX_LOW_SPEED_JITTER_KM = 0.25;
+const MIN_MOVING_SPEED_KMH = 2;
+const MAX_REASONABLE_SPEED_KMH = 180;
 
 export function routeDateId(offset = 0) {
   const date = new Date();
@@ -63,6 +68,74 @@ export function calculateDistanceKm(pointA, pointB) {
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
   return earthRadiusKm * c;
+}
+
+function timestampMs(point) {
+  const value = Number(point?.timestamp);
+  return Number.isFinite(value) ? value : null;
+}
+
+function pointAccuracyM(point) {
+  const value = Number(point?.accuracy);
+  return Number.isFinite(value) && value >= 0 ? value : null;
+}
+
+export function hasUsableGpsAccuracy(point) {
+  const accuracy = pointAccuracyM(point);
+  return accuracy === null || accuracy <= MAX_GPS_ACCURACY_M;
+}
+
+export function movementSegmentStats(prev, curr) {
+  if (!prev || !curr) {
+    return { counted: false, km: 0, minutes: 0, speedKmh: 0, reason: "missing-point" };
+  }
+
+  if (!hasUsableGpsAccuracy(prev) || !hasUsableGpsAccuracy(curr)) {
+    return { counted: false, km: 0, minutes: 0, speedKmh: 0, reason: "low-accuracy" };
+  }
+
+  const km = calculateDistanceKm(prev, curr);
+  const prevAccuracy = pointAccuracyM(prev) || 0;
+  const currAccuracy = pointAccuracyM(curr) || 0;
+  const accuracyFloorKm = Math.min(0.3, (prevAccuracy + currAccuracy) / 1000);
+  const minSegmentKm = Math.max(MIN_MOVEMENT_SEGMENT_KM, accuracyFloorKm);
+
+  if (!Number.isFinite(km) || km < minSegmentKm) {
+    return { counted: false, km: 0, minutes: 0, speedKmh: 0, reason: "within-gps-noise" };
+  }
+
+  const prevTime = timestampMs(prev);
+  const currTime = timestampMs(curr);
+  const minutes =
+    prevTime && currTime && currTime > prevTime ? (currTime - prevTime) / 60000 : 0;
+  const speedKmh = minutes > 0 ? km / (minutes / 60) : 0;
+
+  if (minutes > 0 && speedKmh > MAX_REASONABLE_SPEED_KMH) {
+    return { counted: false, km: 0, minutes, speedKmh, reason: "unrealistic-speed" };
+  }
+
+  if (minutes > 0 && km < MAX_LOW_SPEED_JITTER_KM && speedKmh < MIN_MOVING_SPEED_KMH) {
+    return { counted: false, km: 0, minutes, speedKmh, reason: "stationary-jitter" };
+  }
+
+  if (minutes >= 30 && km < 2 && speedKmh < 2.5) {
+    return { counted: false, km: 0, minutes, speedKmh, reason: "long-idle-drift" };
+  }
+
+  return { counted: true, km, minutes, speedKmh, reason: "movement" };
+}
+
+export function calculateRouteDistanceKm(route = []) {
+  if (!route || route.length < 2) return 0;
+
+  let total = 0;
+
+  for (let i = 1; i < route.length; i += 1) {
+    const segment = movementSegmentStats(route[i - 1], route[i]);
+    if (segment.counted) total += segment.km;
+  }
+
+  return total;
 }
 
 export function loadTodayRoute() {
@@ -176,15 +249,7 @@ export function appendPm25Sample(sample, routeId = getTodayRouteId()) {
 }
 
 export function getTodayDistance(route = loadTodayRoute()) {
-  if (!route || route.length < 2) return 0;
-
-  let total = 0;
-
-  for (let i = 1; i < route.length; i += 1) {
-    total += calculateDistanceKm(route[i - 1], route[i]);
-  }
-
-  return total;
+  return calculateRouteDistanceKm(route);
 }
 
 export function appendPoint(latitude, longitude, metadata = {}) {
@@ -198,12 +263,35 @@ export function appendPoint(latitude, longitude, metadata = {}) {
     timestamp: metadata.timestamp || Date.now(),
   };
 
+  if (!hasUsableGpsAccuracy(nextPoint)) {
+    return {
+      route,
+      distance: getTodayDistance(route),
+      accepted: false,
+      ignoredReason: "low-accuracy",
+    };
+  }
+
+  if (route.length > 0) {
+    const segment = movementSegmentStats(route[route.length - 1], nextPoint);
+
+    if (!segment.counted) {
+      return {
+        route,
+        distance: getTodayDistance(route),
+        accepted: false,
+        ignoredReason: segment.reason,
+      };
+    }
+  }
+
   const nextRoute = [...route, nextPoint];
   saveTodayRoute(nextRoute);
 
   return {
     route: nextRoute,
     distance: getTodayDistance(nextRoute),
+    accepted: true,
   };
 }
 

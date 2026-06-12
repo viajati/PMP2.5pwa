@@ -172,15 +172,19 @@ function mergePm25SampleHistory(...sampleGroups) {
 function mergeRouteSummaries(localSummary, cloudSummary, pm25Samples) {
   if (!localSummary && !cloudSummary && !pm25Samples.length) return null;
 
-  const localDistance = Number(localSummary?.distanceKm) || 0;
-  const cloudDistance = Number(cloudSummary?.distanceKm) || 0;
-  const localMinutes = Number(localSummary?.routeMinutes) || 0;
-  const cloudMinutes = Number(cloudSummary?.routeMinutes) || 0;
+  const localTrustsDistance = localSummary?.distanceSource === "filtered-gps";
+  const cloudTrustsDistance = cloudSummary?.distanceSource === "filtered-gps";
+  const localDistance = localTrustsDistance ? Number(localSummary?.distanceKm) || 0 : 0;
+  const cloudDistance = cloudTrustsDistance ? Number(cloudSummary?.distanceKm) || 0 : 0;
+  const localMinutes = localTrustsDistance ? Number(localSummary?.routeMinutes) || 0 : 0;
+  const cloudMinutes = cloudTrustsDistance ? Number(cloudSummary?.routeMinutes) || 0 : 0;
 
   return {
     ...(cloudSummary || {}),
     ...(localSummary || {}),
     distanceKm: Math.max(localDistance, cloudDistance),
+    distanceSource:
+      localTrustsDistance || cloudTrustsDistance ? "filtered-gps" : "time-samples",
     routeMinutes: Math.max(localMinutes, cloudMinutes),
     samples: Math.max(
       Number(localSummary?.samples) || 0,
@@ -196,12 +200,17 @@ function mergeRouteSummaries(localSummary, cloudSummary, pm25Samples) {
 }
 
 function distanceFromSummary(summary) {
+  if (summary?.distanceSource !== "filtered-gps") return 0;
+
   const value = Number(summary?.distanceKm);
   return Number.isFinite(value) && value > 0 ? value : 0;
 }
 
 function resolvedLiveDistance(route = [], summary = null) {
-  return Math.max(getTodayDistance(route), distanceFromSummary(summary));
+  const routeDistance = getTodayDistance(route);
+  if (route?.length >= 2) return routeDistance;
+
+  return Math.max(routeDistance, distanceFromSummary(summary));
 }
 
 function cityPathFromPoints(route = []) {
@@ -500,11 +509,14 @@ export default function HomePage() {
         );
         const savedSummary = loadTodayRouteSummary();
         const nextDistance = resolvedLiveDistance(result.route, savedSummary);
-        syncCloudRoute(result.route, {
-          ...(savedSummary || {}),
-          distanceKm: Number(nextDistance.toFixed(2)),
-          routeKind: "gps",
-        });
+        if (result.accepted) {
+          syncCloudRoute(result.route, {
+            ...(savedSummary || {}),
+            distanceKm: Number(nextDistance.toFixed(2)),
+            distanceSource: "filtered-gps",
+            routeKind: "gps",
+          });
+        }
         setTodayPath(result.route);
         setDistance(nextDistance);
       },
@@ -544,11 +556,14 @@ export default function HomePage() {
         );
         const savedSummary = loadTodayRouteSummary();
         const nextDistance = resolvedLiveDistance(result.route, savedSummary);
-        syncCloudRoute(result.route, {
-          ...(savedSummary || {}),
-          distanceKm: Number(nextDistance.toFixed(2)),
-          routeKind: "gps",
-        });
+        if (result.accepted) {
+          syncCloudRoute(result.route, {
+            ...(savedSummary || {}),
+            distanceKm: Number(nextDistance.toFixed(2)),
+            distanceSource: "filtered-gps",
+            routeKind: "gps",
+          });
+        }
         setTodayPath(result.route);
         setDistance(nextDistance);
 
@@ -737,7 +752,11 @@ export default function HomePage() {
 
     async function calculateRouteExposureLoad() {
       if (!CITY_COORDS[activeCity]) {
-        setRouteLoad(null);
+        setRouteLoad((current) => (
+          current?.city === activeCity && current?.routeKind === activeRouteKind
+            ? current
+            : null
+        ));
         return;
       }
 
@@ -834,6 +853,7 @@ export default function HomePage() {
           : null;
         const routeSummary = {
           distanceKm: stats.km,
+          distanceSource: "filtered-gps",
           routeMinutes: stats.minutes,
           exposureLoad: hasPmData ? stats.exposureLoad : null,
           avgPm25: hasPmData ? stats.avgPm25 : null,
@@ -854,7 +874,7 @@ export default function HomePage() {
           calculation: {
             distance: activeRoadRoute
               ? "road-route distance between GPS points"
-              : "GPS point-to-point distance",
+              : "filtered GPS point-to-point distance",
             duration: teleopMode && activeRoadRoute
               ? `${transportName(routeMode, false)} route duration`
               : stats.durationSource,
@@ -903,7 +923,11 @@ export default function HomePage() {
         });
       } catch {
         if (!alive) return;
-        setRouteLoad(null);
+        setRouteLoad((current) => (
+          current?.city === activeCity && current?.routeKind === activeRouteKind
+            ? current
+            : null
+        ));
       } finally {
         if (alive) setRouteLoadLoading(false);
       }
@@ -915,7 +939,7 @@ export default function HomePage() {
       alive = false;
       clearTimeout(timer);
     };
-  }, [activeCity, activePath, activeRoadRoute, activeRouteMode, pm25SampleCount, routeMode, syncCloudRoute, teleopMode]);
+  }, [activeCity, activePath, activeRoadRoute, activeRouteKind, activeRouteMode, pm25SampleCount, routeMode, syncCloudRoute, teleopMode]);
 
   useEffect(() => {
     let alive = true;
@@ -1101,32 +1125,36 @@ export default function HomePage() {
     : isPreviewingCity
       ? previewCity
       : currentCity;
+  const routeLoadForDisplay = routeLoad?.city === activeCity && routeLoad?.routeKind === activeRouteKind
+    ? routeLoad
+    : null;
+  const showRouteLoadPlaceholder = routeLoadLoading && !routeLoadForDisplay;
   const displayedDistance = teleopMode
-    ? routeLoad?.routeDistanceKm ?? activeDistance
-    : Math.max(activeDistance, Number(routeLoad?.routeDistanceKm) || 0);
+    ? routeLoadForDisplay?.routeDistanceKm ?? activeDistance
+    : Math.max(activeDistance, Number(routeLoadForDisplay?.routeDistanceKm) || 0);
   const routeSourceLabel = roadRoutingLoading
     ? "routing road path"
     : teleopMode
-      ? routeLoad?.routeSource || "Simulation"
-      : routeLoad?.routeSource || "GPS samples";
+      ? routeLoadForDisplay?.routeSource || "Simulation"
+      : routeLoadForDisplay?.routeSource || "GPS samples";
   const routeSourceDisplay = routeSourceName(routeSourceLabel, isChinese);
-  const routeCityPath = routeLoad?.cityPath?.length
-    ? routeLoad.cityPath
+  const routeCityPath = routeLoadForDisplay?.cityPath?.length
+    ? routeLoadForDisplay.cityPath
     : cityPathFromPoints(activePath);
   const routeCityPathVisible = visibleCityPath(routeCityPath, routePathOpen);
   const routeCityPathHiddenCount = Math.max(0, routeCityPath.length - 4);
-  const routeSampleLabel = routeLoad?.pm25SampleCount > 0
+  const routeSampleLabel = routeLoadForDisplay?.pm25SampleCount > 0
     ? t("PM samples", "PM 樣本")
     : teleopMode
       ? t("moves", "次移動")
       : t("GPS points", "GPS 點");
-  const routePm25Display = routeLoadLoading ? "-" : displayNumber(routeLoad?.exposureLoad, 1);
-  const routeLoadScoreDisplay = routeLoadLoading ? "-" : displayNumber(routeLoad?.routeLoadScore, 1);
-  const currentCityPm25Display = routeLoadLoading ? "-" : displayNumber(routeLoad?.currentCityPm25, 1);
+  const routePm25Display = showRouteLoadPlaceholder ? "-" : displayNumber(routeLoadForDisplay?.exposureLoad, 1);
+  const routeLoadScoreDisplay = showRouteLoadPlaceholder ? "-" : displayNumber(routeLoadForDisplay?.routeLoadScore, 1);
+  const currentCityPm25Display = showRouteLoadPlaceholder ? "-" : displayNumber(routeLoadForDisplay?.currentCityPm25, 1);
   const displayCityPm25Display = isPreviewingCity
-    ? (previewPm25Loading ? "-" : displayNumber(previewPm25, 1))
+    ? (previewPm25Loading && previewPm25 === null ? "-" : displayNumber(previewPm25, 1))
     : currentCityPm25Display;
-  const routeMinutesDisplay = routeLoadLoading ? "-" : displayInteger(routeLoad?.routeMinutes);
+  const routeMinutesDisplay = showRouteLoadPlaceholder ? "-" : displayInteger(routeLoadForDisplay?.routeMinutes);
   const routeModeDisplay = teleopMode
     ? transportName(routeMode, isChinese)
     : t("Live GPS", "即時 GPS");

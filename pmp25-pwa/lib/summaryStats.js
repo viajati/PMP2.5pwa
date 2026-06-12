@@ -2,7 +2,7 @@ import {
   loadPm25SamplesById,
   loadRouteById,
   loadRouteSummaryById,
-  calculateDistanceKm,
+  movementSegmentStats,
   routeDateId,
 } from "@/lib/trackStorage";
 import { getNearestCity } from "@/lib/cities";
@@ -331,7 +331,10 @@ function routeDistanceAndMinutes(route = []) {
   for (let index = 1; index < route.length; index += 1) {
     const prev = route[index - 1];
     const curr = route[index];
-    const segmentKm = calculateDistanceKm(prev, curr);
+    const segment = movementSegmentStats(prev, curr);
+    if (!segment.counted) continue;
+
+    const segmentKm = segment.km;
     const duration = segmentMinutes(prev, curr, segmentKm);
 
     km += segmentKm;
@@ -387,22 +390,6 @@ export function buildRouteStats(route = [], storedSummary = null) {
   if (points.length === 0 && hasPm25Samples) {
     const sampleBins = emptyIntervals();
     const values = pm25Samples.map(pointPm25).filter((value) => value !== null);
-    const sampleRoute = pm25Samples.filter((sample) => (
-      Number.isFinite(Number(sample?.latitude)) &&
-      Number.isFinite(Number(sample?.longitude))
-    ));
-    let sampleDistance = 0;
-    let sampleMinutes = 0;
-
-    for (let index = 1; index < sampleRoute.length; index += 1) {
-      const prev = sampleRoute[index - 1];
-      const curr = sampleRoute[index];
-      const km = calculateDistanceKm(prev, curr);
-      const duration = segmentMinutes(prev, curr, km);
-
-      sampleDistance += km;
-      sampleMinutes += duration.minutes;
-    }
 
     values.forEach((_, index) => addIntervalSample(sampleBins, pm25Samples[index]));
     const avgPm25 = values.reduce((sum, value) => sum + value, 0) / values.length;
@@ -410,14 +397,9 @@ export function buildRouteStats(route = [], storedSummary = null) {
     const low = Math.min(...values);
     const summaryDistance = Number(storedSummary?.distanceKm);
     const summaryMinutes = Number(storedSummary?.routeMinutes);
-    const bestDistance = Math.max(
-      Number.isFinite(summaryDistance) ? summaryDistance : 0,
-      sampleDistance
-    );
-    const bestMinutes = Math.max(
-      Number.isFinite(summaryMinutes) ? summaryMinutes : 0,
-      sampleMinutes
-    );
+    const trustsStoredDistance = storedSummary?.distanceSource === "filtered-gps";
+    const bestDistance = trustsStoredDistance && Number.isFinite(summaryDistance) ? summaryDistance : 0;
+    const bestMinutes = trustsStoredDistance && Number.isFinite(summaryMinutes) ? summaryMinutes : 0;
 
     return {
       km: Number(bestDistance.toFixed(2)),
@@ -426,13 +408,14 @@ export function buildRouteStats(route = [], storedSummary = null) {
       low: Number(low.toFixed(1)),
       minutes: Math.round(bestMinutes),
       exposureLoad: Number(avgPm25.toFixed(1)),
-      segments: Math.max(0, sampleRoute.length - 1),
+      segments: 0,
       hits: pm25Samples.length,
       intervals: finalizeIntervals(sampleBins),
       cityPath: sampleCityPathFor(pm25Samples),
-      durationSource: sampleRoute.length > 1 ? "sample-coordinates" : "time-samples",
+      durationSource: "time-samples",
       routeMode: storedSummary?.routeMode || "",
-      routeSource: storedSummary?.routeSource || (sampleRoute.length > 1 ? "Recovered GPS samples" : "Time samples"),
+      routeSource: "Time samples",
+      distanceSource: trustsStoredDistance ? "filtered-gps" : "time-samples",
       sampleCount: pm25Samples.length,
       pm25SampleCount: pm25Samples.length,
       isFallback: false,
@@ -445,16 +428,21 @@ export function buildRouteStats(route = [], storedSummary = null) {
   let peak = 0;
   let low = Number.POSITIVE_INFINITY;
   let timestampSegments = 0;
+  let countedSegments = 0;
 
   for (let index = 1; index < points.length; index += 1) {
     const prev = points[index - 1];
     const curr = points[index];
-    const segmentKm = calculateDistanceKm(prev, curr);
+    const segment = movementSegmentStats(prev, curr);
+    if (!segment.counted) continue;
+
+    const segmentKm = segment.km;
     const duration = segmentMinutes(prev, curr, segmentKm);
     const segmentPm = segmentPm25(prev, curr, storedSummary);
 
     km += segmentKm;
     minutes += duration.minutes;
+    countedSegments += 1;
     pmValues.push(segmentPm);
     peak = Math.max(peak, segmentPm);
     low = Math.min(low, segmentPm);
@@ -480,8 +468,6 @@ export function buildRouteStats(route = [], storedSummary = null) {
     low = fallbackAvg;
   }
 
-  const summaryDistance = Number(storedSummary?.distanceKm);
-  const summaryMinutes = Number(storedSummary?.routeMinutes);
   const storedAvgPm25 = storedPm25Average(storedSummary);
   const summaryPeak = Number(storedSummary?.peakPm25);
   const summaryLow = Number(storedSummary?.lowPm25);
@@ -502,21 +488,8 @@ export function buildRouteStats(route = [], storedSummary = null) {
     sampleIntervals = finalizeIntervals(sampleBins);
   }
 
-  const sampleRoute = pm25Samples.filter((sample) => (
-    Number.isFinite(Number(sample?.latitude)) &&
-    Number.isFinite(Number(sample?.longitude))
-  ));
-  const sampleRouteStats = routeDistanceAndMinutes(sampleRoute);
-  const bestDistance = Math.max(
-    Number.isFinite(summaryDistance) ? summaryDistance : 0,
-    km,
-    sampleRouteStats.km
-  );
-  const bestMinutes = Math.max(
-    Number.isFinite(summaryMinutes) ? summaryMinutes : 0,
-    minutes,
-    sampleRouteStats.minutes
-  );
+  const bestDistance = km;
+  const bestMinutes = minutes;
   const displayedAvgPm25 = hasPm25Samples
     ? Number(sampleAvgPm25.toFixed(1))
     : !measuredPm25 && storedAvgPm25 > 0
@@ -539,7 +512,7 @@ export function buildRouteStats(route = [], storedSummary = null) {
     minutes: Math.round(bestMinutes),
     exposureLoad: displayedAvgPm25,
     km: Number(bestDistance.toFixed(2)),
-    segments: Math.max(0, points.length - 1),
+    segments: countedSegments,
     hits: hasPm25Samples ? pm25Samples.length : points.length,
     intervals: sampleIntervals || finalizeIntervals(bins),
     cityPath: primaryCityPath.length > 0 ? primaryCityPath : cityPathFor(points),
@@ -552,6 +525,7 @@ export function buildRouteStats(route = [], storedSummary = null) {
         : "distance",
     routeMode: storedSummary?.routeMode || "",
     routeSource: storedSummary?.routeSource || (hasPm25Samples ? "Time samples" : ""),
+    distanceSource: "filtered-gps",
     sampleCount: hasPm25Samples ? pm25Samples.length : points.length,
     pm25SampleCount: pm25Samples.length,
     isFallback:
