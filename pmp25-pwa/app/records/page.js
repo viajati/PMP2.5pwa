@@ -47,6 +47,7 @@ const regions = ["NORTH", "WEST", "SOUTH", "EAST"];
 const ADVICE_CACHE_PREFIX = "pmp25_health_advice_v2";
 const AI_ADVICE_CLIENT_CACHE_MS = 10 * 60 * 1000;
 const FALLBACK_ADVICE_CLIENT_CACHE_MS = 60 * 1000;
+const FORECAST_DAYS = 5;
 
 function numericValue(value) {
   if (value === null || value === undefined || value === "" || value === "-") return null;
@@ -289,7 +290,7 @@ export default function RecordsPage() {
     try {
       const [liveResult, hourlyResult] = await Promise.allSettled([
         fetchAllCityAirQuality(),
-        fetchHourlyAirQuality(city, 7),
+        fetchHourlyAirQuality(city, FORECAST_DAYS),
       ]);
 
       if (liveResult.status === "fulfilled" && liveResult.value?.length) {
@@ -343,7 +344,7 @@ export default function RecordsPage() {
   useEffect(() => {
     async function refreshForecast() {
       try {
-        const hourly = await fetchHourlyAirQuality(city, 7);
+        const hourly = await fetchHourlyAirQuality(city, FORECAST_DAYS);
         setDailyPrediction(buildDailyPrediction(hourly));
       } catch (error) {
         console.warn("Forecast load failed:", error);
@@ -519,10 +520,9 @@ export default function RecordsPage() {
   const actualRisk = pmRiskMeta(selectedPm25, t);
   const potentialRisk = pmRiskMeta(potentialBasis, t);
   const forecastDaysWithData = dailyPrediction.filter((day) => numericValue(day.pm25) !== null);
-  const forecastDaysForDisplay = forecastDaysWithData.length > 0
+  const forecastDaysForDisplay = (forecastDaysWithData.length > 0
     ? forecastDaysWithData
-    : dailyPrediction;
-  const forecastDayCount = forecastDaysWithData.length || dailyPrediction.length || 7;
+    : dailyPrediction).slice(0, FORECAST_DAYS);
   const forecastTrendValues = forecastDaysForDisplay.map((day) => numericValue(day.pm25));
   const forecastChartValues = forecastTrendValues.filter((value) => value !== null);
   const hasForecastTrendData = forecastChartValues.length > 0;
@@ -1194,7 +1194,7 @@ export default function RecordsPage() {
 
               <div className="forecast-section">
                 <h2 className="forecast-section-title">
-                  {isChinese ? `${forecastDayCount}天預測統計` : `${forecastDayCount}-Day Prediction Outlook (PM2.5)`}
+                  {isChinese ? "5天預測統計" : "5-Day Prediction Outlook (PM2.5)"}
                 </h2>
 
                 <div className="forecast-week-card forecast-native-week-card">

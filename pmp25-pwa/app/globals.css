@@ -2100,6 +2100,7 @@ button:disabled {
   font-size: 12px;
   font-weight: 700;
   line-height: 1.45;
+  text-align: center;
 }
 
 /* Forecast */
@@ -2277,10 +2278,15 @@ button:disabled {
 }
 
 .forecast-week-row {
-  display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 6px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: clamp(18px, 7vw, 40px);
   text-align: center;
+}
+
+.forecast-week-row > div {
+  width: 46px;
 }
 
 .forecast-week-row svg {
@@ -2334,7 +2340,7 @@ button:disabled {
 }
 
 .forecast-updated-at {
-  margin-top: 24px;
+  margin: 24px auto 0;
   text-align: center;
   font-size: 10px;
   font-weight: 950;
@@ -5061,17 +5067,18 @@ html[data-theme="light"] .forecast-native-week-card {
 }
 
 .forecast-native-week-card {
-  padding: 20px 0 30px;
+  padding: 22px 18px 30px;
 }
 
 .forecast-native-week-card .forecast-week-row {
   margin-bottom: 20px;
-  padding: 0 5px;
+  padding: 0;
 }
 
 .forecast-native-chart-box {
   position: relative;
-  margin: 20px 15px 0;
+  width: min(100%, 620px);
+  margin: 20px auto 0;
 }
 
 .forecast-native-chart-box svg {
