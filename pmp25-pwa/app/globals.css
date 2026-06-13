@@ -57,6 +57,17 @@
   --bottom-nav-bg: rgba(16, 18, 23, 0.92);
   --bottom-nav-border: rgba(255, 255, 255, 0.1);
   --bottom-nav-shadow: 0 18px 44px rgba(0, 0, 0, 0.34);
+  --login-sheet-bg: #181b21;
+  --login-sheet-text: #f8fafc;
+  --login-sheet-muted: rgba(248, 250, 252, 0.58);
+  --login-sheet-faint: rgba(248, 250, 252, 0.34);
+  --login-field-bg: rgba(255, 255, 255, 0.08);
+  --login-field-border: rgba(255, 255, 255, 0.1);
+  --login-divider: rgba(255, 255, 255, 0.1);
+  --login-action-bg: rgba(255, 255, 255, 0.08);
+  --login-action-text: rgba(248, 250, 252, 0.72);
+  --login-status-bg: rgba(255, 255, 255, 0.08);
+  --login-status-border: rgba(255, 255, 255, 0.1);
 
   --radius-sm: 14px;
   --radius-md: 18px;
@@ -108,6 +119,17 @@ html[data-theme="light"] {
   --bottom-nav-bg: rgba(255, 255, 255, 0.92);
   --bottom-nav-border: rgba(15, 23, 42, 0.08);
   --bottom-nav-shadow: 0 18px 44px rgba(51, 77, 97, 0.16);
+  --login-sheet-bg: #ffffff;
+  --login-sheet-text: #1a1a1a;
+  --login-sheet-muted: #666666;
+  --login-sheet-faint: #999999;
+  --login-field-bg: #f8f9fa;
+  --login-field-border: #f1f3f5;
+  --login-divider: #edf0f3;
+  --login-action-bg: rgba(15, 23, 42, 0.06);
+  --login-action-text: #777777;
+  --login-status-bg: #f8f9fa;
+  --login-status-border: #edf0f3;
 
   --shadow-panel: 0 18px 42px rgba(51, 77, 97, 0.18);
   --shadow-soft: 0 12px 26px rgba(51, 77, 97, 0.12);
@@ -2714,15 +2736,15 @@ button:disabled {
   justify-content: flex-start;
   margin: 0;
   border-radius: 45px 45px 0 0;
-  background: #fff;
+  background: var(--login-sheet-bg);
   padding: 45px 40px max(50px, calc(var(--safe-bottom) + 34px));
-  color: #1a1a1a;
+  color: var(--login-sheet-text);
   box-shadow: 0 -18px 42px rgba(0, 0, 0, 0.22);
 }
 
 .login-title {
   margin: 0 0 10px;
-  color: #1a1a1a;
+  color: var(--login-sheet-text);
   font-size: 24px;
   font-weight: 950;
   line-height: 1;
@@ -2747,10 +2769,10 @@ button:disabled {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  border: 1.5px solid #f1f3f5;
+  border: 1.5px solid var(--login-field-border);
   border-radius: 18px;
-  background: #f8f9fa;
-  color: #1a1a1a;
+  background: var(--login-field-bg);
+  color: var(--login-sheet-text);
   font-size: 13px;
   font-weight: 950;
   box-shadow: inset 0 2px 5px rgba(15, 23, 42, 0.04);
@@ -2794,7 +2816,7 @@ button:disabled {
   display: flex;
   align-items: center;
   gap: 10px;
-  color: #999;
+  color: var(--login-sheet-faint);
   font-size: 10px;
   font-weight: 950;
   letter-spacing: 0.1em;
@@ -2806,16 +2828,16 @@ button:disabled {
   content: "";
   height: 1px;
   flex: 1;
-  background: #edf0f3;
+  background: var(--login-divider);
 }
 
 .login-field {
   display: flex;
   height: 64px;
   align-items: center;
-  border: 1.5px solid #f1f3f5;
+  border: 1.5px solid var(--login-field-border);
   border-radius: 18px;
-  background: #f8f9fa;
+  background: var(--login-field-bg);
   padding: 0 20px;
   box-shadow: inset 0 2px 5px rgba(15, 23, 42, 0.04);
 }
@@ -2823,7 +2845,7 @@ button:disabled {
 .login-field-icon {
   flex-shrink: 0;
   margin-right: 16px;
-  color: #666;
+  color: var(--login-sheet-muted);
   font-size: 20px;
 }
 
@@ -2832,14 +2854,14 @@ button:disabled {
   width: 100%;
   border: 0;
   background: transparent;
-  color: #1a1a1a;
+  color: var(--login-sheet-text);
   font-size: 16px;
   font-weight: 900;
   outline: none;
 }
 
 .login-field-input::placeholder {
-  color: #999;
+  color: var(--login-sheet-faint);
 }
 
 .login-field-action {
@@ -2850,12 +2872,12 @@ button:disabled {
   align-items: center;
   justify-content: center;
   border-radius: var(--radius-round);
-  color: #777;
+  color: var(--login-action-text);
 }
 
 .login-field-action:active {
-  background: rgba(15, 23, 42, 0.06);
-  color: #1a1a1a;
+  background: var(--login-action-bg);
+  color: var(--login-sheet-text);
 }
 
 .login-submit {
@@ -2874,23 +2896,23 @@ button:disabled {
 
 .login-status-pill,
 .login-auth-status {
-  border: 1px solid #edf0f3;
+  border: 1px solid var(--login-status-border);
   border-radius: 16px;
-  background: #f8f9fa;
+  background: var(--login-status-bg);
   padding: 10px 12px;
-  color: #666;
+  color: var(--login-sheet-muted);
   font-size: 12px;
   font-weight: 850;
   line-height: 1.35;
 }
 
 .login-auth-status {
-  color: #1a1a1a;
+  color: var(--login-sheet-text);
 }
 
 .login-forgot-button {
   width: 100%;
-  color: #999;
+  color: var(--login-sheet-faint);
   font-size: 12px;
   font-weight: 950;
   text-align: center;
@@ -2906,7 +2928,7 @@ button:disabled {
 
 .login-switch {
   padding-top: 14px;
-  color: #999;
+  color: var(--login-sheet-faint);
   font-size: 14px;
 }
 
@@ -2917,7 +2939,7 @@ button:disabled {
 .login-access-note {
   margin: 0;
   padding-top: 4px;
-  color: #999;
+  color: var(--login-sheet-faint);
   font-size: 12px;
   line-height: 1.35;
 }
