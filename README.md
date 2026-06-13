@@ -61,20 +61,6 @@ On Android:
 4. Confirm the install.
 5. Open PM2.5 from the home screen icon.
 
-## Screens
-
-| Login | Home map | Home route card |
-| --- | --- | --- |
-| ![Login](pmp25-pwa/docs/screenshots/01-login.jpg) | ![Home collapsed](pmp25-pwa/docs/screenshots/03-home-collapsed.jpg) | ![Home expanded](pmp25-pwa/docs/screenshots/04-home-expanded.jpg) |
-
-| Records | Summary | Setup |
-| --- | --- | --- |
-| ![Records](pmp25-pwa/docs/screenshots/05-records-live.jpg) | ![Summary](pmp25-pwa/docs/screenshots/08-summary.jpg) | ![Setup](pmp25-pwa/docs/screenshots/09-setup.jpg) |
-
-| Reset password | Health profile |
-| --- | --- |
-| ![Reset password](pmp25-pwa/docs/screenshots/02-reset-password.jpg) | ![Profile](pmp25-pwa/docs/screenshots/10-profile.jpg) |
-
 ## Core Idea
 
 Most air quality apps show a city-level number. PM2.5 adds a personal layer:
