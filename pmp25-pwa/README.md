@@ -4,6 +4,65 @@ PM2.5 Taiwan is a mobile-first Progressive Web App for understanding personal PM
 
 The app is built as a Next.js web app and designed to feel like a native phone interface inside the browser.
 
+## Live App
+
+Production PWA:
+
+```text
+https://pmp-2-5pwa.vercel.app/
+```
+
+This folder, `pmp25-pwa/`, is the current active app inside the repository. The repository root still contains the earlier Expo/React Native project files for reference, but current PWA development and deployment happen here.
+
+## Quick Start
+
+```bash
+cd pmp25-pwa
+npm install
+npm run dev
+```
+
+Open:
+
+```text
+http://localhost:3000
+```
+
+Before pushing or deploying:
+
+```bash
+npm run lint
+npm run build
+```
+
+Environment setup:
+
+```bash
+cp .env.example .env.local
+```
+
+Fill in the Firebase values for authentication and Firestore sync. Add `GEMINI_API_KEY` and `GEMINI_MODEL` if testing profile-based AI advice locally.
+
+## Add To Home Screen
+
+iPhone or iPad:
+
+1. Open `https://pmp-2-5pwa.vercel.app/` in Safari.
+2. Tap the Share button.
+3. Choose Add to Home Screen.
+4. Tap Add.
+5. Launch PM2.5 from the home screen icon.
+
+Android:
+
+1. Open `https://pmp-2-5pwa.vercel.app/` in Chrome.
+2. Tap the three-dot menu.
+3. Choose Add to Home screen or Install app.
+4. Confirm the install.
+5. Launch PM2.5 from the home screen icon.
+
+Note: GPS tracking works while the PWA is open and location permission is granted. iOS may suspend web apps in the background; always-on background GPS would require a native wrapper or native app build.
+
 ## Screens
 
 | Login | Home map | Home route card |
@@ -295,26 +354,6 @@ In Firebase Console, enable:
 Publish `firestore.rules` so each user can read/write only their own `users/{uid}` tree.
 
 Firebase Storage is not required yet because profile pictures are preset avatar choices, not uploaded files.
-
-## Local Development
-
-```bash
-npm install
-npm run dev
-```
-
-Open:
-
-```text
-http://localhost:3000
-```
-
-Useful commands:
-
-```bash
-npm run lint
-npm run build
-```
 
 ## Project Structure
 

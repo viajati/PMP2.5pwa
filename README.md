@@ -1,8 +1,65 @@
-# PMP2.5 Taiwan PWA
+# PM2.5 Taiwan PWA
 
-PMP2.5 Taiwan is a mobile-first Progressive Web App for understanding personal PM2.5 exposure in Taiwan. It combines live air quality, weather context, route planning, GPS-based movement history, account sync, bilingual UI, and a health profile so users can see not only the air quality around them, but also how much exposure they accumulate while moving.
+PM2.5 Taiwan is a mobile-first Progressive Web App for understanding personal PM2.5 exposure in Taiwan. It combines live air quality, weather context, route planning, GPS-based movement history, account sync, bilingual UI, and a health profile so users can see not only the air quality around them, but also how much exposure they accumulate while moving.
 
 The app is built as a Next.js web app and designed to feel like a native phone interface inside the browser.
+
+## PWA Location
+
+The active PWA app is inside:
+
+```text
+pmp25-pwa/
+```
+
+The files in the repository root are the earlier Expo/React Native version kept for reference. Current development, deployment, Firebase integration, PWA manifest, and Vercel hosting are handled from `pmp25-pwa/`.
+
+Live app:
+
+```text
+https://pmp-2-5pwa.vercel.app/
+```
+
+## Run Locally
+
+```bash
+cd pmp25-pwa
+npm install
+npm run dev
+```
+
+Then open:
+
+```text
+http://localhost:3000
+```
+
+Useful checks before deployment:
+
+```bash
+npm run lint
+npm run build
+```
+
+Create `pmp25-pwa/.env.local` from `pmp25-pwa/.env.example` and fill in Firebase plus Gemini environment variables before testing login, Firestore sync, and AI advice locally.
+
+## Install To Home Screen
+
+On iPhone or iPad:
+
+1. Open `https://pmp-2-5pwa.vercel.app/` in Safari.
+2. Tap the Share button.
+3. Choose Add to Home Screen.
+4. Tap Add.
+5. Open PM2.5 from the new home screen icon.
+
+On Android:
+
+1. Open `https://pmp-2-5pwa.vercel.app/` in Chrome.
+2. Tap the three-dot menu.
+3. Choose Add to Home screen or Install app.
+4. Confirm the install.
+5. Open PM2.5 from the home screen icon.
 
 ## Screens
 
@@ -20,7 +77,7 @@ The app is built as a Next.js web app and designed to feel like a native phone i
 
 ## Core Idea
 
-Most air quality apps show a city-level number. PMP2.5 adds a personal layer:
+Most air quality apps show a city-level number. PM2.5 adds a personal layer:
 
 - Where am I now?
 - What is the PM2.5 near me?
@@ -274,26 +331,6 @@ Publish `firestore.rules` so each user can read/write only their own `users/{uid
 
 Firebase Storage is not required yet because profile pictures are preset avatar choices, not uploaded files.
 
-## Local Development
-
-```bash
-npm install
-npm run dev
-```
-
-Open:
-
-```text
-http://localhost:3000
-```
-
-Useful commands:
-
-```bash
-npm run lint
-npm run build
-```
-
 ## Project Structure
 
 ```text
@@ -335,4 +372,4 @@ pmp25-pwa/
 
 ## Presentation Summary
 
-PMP2.5 Taiwan is a personalized pollution exposure tracker. It combines live Taiwan air-quality data, weather-aware visuals, road-based route estimates, real GPS history, Firebase account sync, and bilingual user preferences. The key design idea is that exposure is not just a city number; it is accumulated through time, route, movement, and transport mode.
+PM2.5 Taiwan is a personalized pollution exposure tracker. It combines live Taiwan air-quality data, weather-aware visuals, road-based route estimates, real GPS history, Firebase account sync, and bilingual user preferences. The key design idea is that exposure is not just a city number; it is accumulated through time, route, movement, and transport mode.
