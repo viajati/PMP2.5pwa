@@ -63,20 +63,6 @@ Android:
 
 Note: GPS tracking works while the PWA is open and location permission is granted. iOS may suspend web apps in the background; always-on background GPS would require a native wrapper or native app build.
 
-## Screens
-
-| Login | Home map | Home route card |
-| --- | --- | --- |
-| ![Login](docs/screenshots/01-login.jpg) | ![Home collapsed](docs/screenshots/03-home-collapsed.jpg) | ![Home expanded](docs/screenshots/04-home-expanded.jpg) |
-
-| Records | Summary | Setup |
-| --- | --- | --- |
-| ![Records](docs/screenshots/05-records-live.jpg) | ![Summary](docs/screenshots/08-summary.jpg) | ![Setup](docs/screenshots/09-setup.jpg) |
-
-| Reset password | Health profile |
-| --- | --- |
-| ![Reset password](docs/screenshots/02-reset-password.jpg) | ![Profile](docs/screenshots/10-profile.jpg) |
-
 ## Core Idea
 
 Most air quality apps show a city-level number. PM2.5 adds a personal layer:
